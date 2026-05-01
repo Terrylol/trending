@@ -21,13 +21,12 @@ compatibility: opencode
 
 ## 环境准备
 
-**工作目录**：所有命令都必须在 `/Users/chengshang/OpenCode/.opencode/skills/github-trending-video` 目录下执行。
+**工作目录**：所有命令都必须在项目根目录（即 `SKILL.md` 所在目录）下执行。
 
 **虚拟环境**：所有 Python 命令必须使用 `venv/bin/python`，而不是系统的 `python3`。
 
 **依赖安装**（首次执行前）：
 ```bash
-cd /Users/chengshang/OpenCode/.opencode/skills/github-trending-video
 python3 -m venv venv
 venv/bin/pip install Pillow edge-tts moviepy requests beautifulsoup4 lxml bilibili-api-python
 ```
@@ -150,7 +149,7 @@ venv/bin/python upload.py
 ## 文件结构
 
 ```
-.opencode/skills/github-trending-video/
+github-trending-video/          # 项目根目录
 ├── SKILL.md                    # 本文件（Agent指令）
 ├── upload.py                   # Step 5: 上传脚本
 ├── config/
