@@ -99,8 +99,12 @@ class BilibiliUploader:
         
         for i, project in enumerate(projects, 1):
             name = project.get('name', 'Unknown')
-            description = project.get('description', '')
             url = project.get('url', '')
+            
+            narrative = project.get('narrative', {})
+            description = narrative.get('body') if narrative else None
+            if not description:
+                description = project.get('description', '')
             
             desc += f"{i}. {name}\n"
             desc += f"   {description}\n"
