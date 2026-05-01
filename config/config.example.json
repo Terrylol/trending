@@ -1,0 +1,12 @@
+{
+  "bilibili": {
+    "sessdata": "YOUR_SESSDATA",
+    "bili_jct": "YOUR_BILI_JCT",
+    "buvid3": "YOUR_BUVID3"
+  },
+  "video": {
+    "limit": 5,
+    "resolution": "1920x1080",
+    "fps": 24
+  }
+}

@@ -1,0 +1,10 @@
+config/config.json
+output/
+screenshots/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.mp4
+*.mp3
+*.png
