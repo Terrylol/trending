@@ -111,7 +111,6 @@ class BilibiliUploader:
         desc += "\n"
         desc += "📌 关于本视频：\n"
         desc += "- 每日自动更新\n"
-        desc += "- AI生成项目介绍\n"
         desc += "- 欢迎关注获取最新技术动态\n\n"
         
         desc += "#GitHub #开源 #编程 #技术 #AI"
