@@ -120,7 +120,6 @@ class VideoWorkflow:
         """生成语音"""
         print("\n[Step 2/3] 生成语音")
         
-        audio_format = self.tts_generator.get_audio_format()
         audio_files = self.tts_generator.generate_all_audio(projects, date)
         
         return audio_files

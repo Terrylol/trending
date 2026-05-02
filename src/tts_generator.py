@@ -5,7 +5,9 @@ TTS 语音生成
 import asyncio
 from typing import List, Dict
 from pathlib import Path
-from .tts import get_tts_engine
+import sys
+sys.path.insert(0, 'src')
+from tts import get_tts_engine
 
 class TTSGenerator:
     def __init__(self, config: Dict):
