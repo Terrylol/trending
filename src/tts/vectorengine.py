@@ -14,11 +14,16 @@ class VectorEngineTTS(BaseTTS):
         self.apikey = apikey
         self.base_url = "https://api.vectorengine.ai/v1beta/models/gemini-3.1-flash-tts-preview:generateContent"
         self.voice = "Fenrir"
+        self.speed = 1.3  # 语速倍率 (1.0=正常, 1.3=快30%)
         self.max_retries = 3
         self.retry_delay = 5
     
     async def generate_audio(self, text: str, output_file: str) -> str:
         """生成 WAV 音频"""
+        # 添加语速标记
+        if self.speed > 1.0:
+            text = f"[speed:{self.speed}] {text}"
+        
         for attempt in range(self.max_retries):
             try:
                 response = requests.post(
