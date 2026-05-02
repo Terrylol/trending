@@ -16,12 +16,29 @@ from video_composer import VideoComposer
 
 
 class VideoWorkflow:
-    def __init__(self):
+    def __init__(self, config_path: str = None):
+        config = self._load_config(config_path)
+        
         self.card_generator = CardGenerator({'resolution': '1920x1080', 'fps': 24})
-        self.tts_generator = TTSGenerator({'voice': 'zh-CN-XiaoxiaoNeural'})
+        
+        tts_config = config.get('tts', {'engine': 'edge', 'apikey': ''})
+        self.tts_generator = TTSGenerator(tts_config)
+        
         self.video_composer = VideoComposer({'resolution': '1920x1080', 'fps': 24})
         self.output_dir = Path('output')
         self.output_dir.mkdir(exist_ok=True)
+    
+    def _load_config(self, config_path: str = None) -> Dict:
+        """加载配置文件"""
+        if not config_path:
+            config_path = 'config/config.json'
+        
+        config_file = Path(config_path)
+        if config_file.exists():
+            with open(config_file) as f:
+                return json.load(f)
+        
+        return {'tts': {'engine': 'edge', 'apikey': ''}}
     
     def run(self, projects: List[Dict]):
         """执行视频生成工作流"""
@@ -101,40 +118,11 @@ class VideoWorkflow:
     
     def _generate_audio(self, projects: List[Dict], date: str) -> List[str]:
         """生成语音"""
-        import asyncio
         print("\n[Step 2/3] 生成语音")
         
-        audio_files = []
+        audio_format = self.tts_generator.get_audio_format()
+        audio_files = self.tts_generator.generate_all_audio(projects, date)
         
-        # 标题语音
-        intro_text = f"今天是{date}，让我们来看看GitHub上最热门的项目"
-        intro_path = str(self.output_dir / "audio_intro.mp3")
-        asyncio.run(self.tts_generator.generate_audio(intro_text, intro_path))
-        audio_files.append(intro_path)
-        
-        # 项目语音
-        for i, project in enumerate(projects):
-            audio_path = str(self.output_dir / f"audio_{i}.mp3")
-            
-            # 使用narrative字段生成语音
-            narrative = project.get('narrative', {})
-            hook = narrative.get('hook', '')
-            body = narrative.get('body', '')
-            call_to_action = narrative.get('call_to_action', '')
-            
-            # 组合文本：hook + body + call_to_action
-            text = f"{hook}\n{body}\n{call_to_action}" if hook else body
-            
-            asyncio.run(self.tts_generator.generate_audio(text, audio_path))
-            audio_files.append(audio_path)
-        
-        # 结尾语音
-        ending_text = "以上就是今天的GitHub Trending，感谢观看"
-        ending_path = str(self.output_dir / "audio_ending.mp3")
-        asyncio.run(self.tts_generator.generate_audio(ending_text, ending_path))
-        audio_files.append(ending_path)
-        
-        print(f"  ✓ 语音生成完成，共{len(audio_files)}个文件")
         return audio_files
     
     def _compose_video(self, slides: List[str], audio_files: List[str]) -> str:

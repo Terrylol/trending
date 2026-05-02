@@ -1,4 +1,8 @@
 {
+  "tts": {
+    "engine": "edge",
+    "apikey": ""
+  },
   "bilibili": {
     "sessdata": "YOUR_SESSDATA",
     "bili_jct": "YOUR_BILI_JCT",
