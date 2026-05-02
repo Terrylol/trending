@@ -111,7 +111,7 @@ cat output/trending.json | jq '.projects[0]'
 
 ### Step 4: 生成视频
 
-运行视频生成脚本（建议超时时间：180秒）：
+运行视频生成脚本（**建议超时时间：600秒**，视频渲染耗时较长）：
 
 ```bash
 venv/bin/python src/workflow.py --projects "$(cat output/projects_summary.json)"
@@ -121,6 +121,7 @@ venv/bin/python src/workflow.py --projects "$(cat output/projects_summary.json)"
 1. 生成幻灯片（PNG）- 使用项目截图和文字
 2. 生成语音（MP3）- 使用 Edge-TTS
 3. 合成视频（MP4）- 使用 MoviePy
+4. **自动验证视频完整性** - 检查视频流和音频流时长是否匹配
 
 **输出**：`output/trending_video.mp4`
 
@@ -128,6 +129,8 @@ venv/bin/python src/workflow.py --projects "$(cat output/projects_summary.json)"
 ```bash
 ls -lh output/trending_video.mp4
 ```
+
+**⚠️ 重要**：视频渲染是逐帧处理的，非常耗时。如果进程被中断，MoviePy 可能输出不完整的视频。脚本已添加完整性验证，会自动检测并报错。
 
 ### Step 5: 上传到B站
 
@@ -186,6 +189,12 @@ github-trending-video/          # 项目根目录
 **问题：视频文字太小/太大**
 - 字号已优化：标题80px、正文42px
 - 如需调整，修改 src/card_generator.py 的 _load_fonts() 方法
+
+**问题：视频渲染不完整/视频流时长与音频不一致**
+- 原因：进程被 SIGTERM 中断（超时或手动终止）
+- 脚本会自动验证视频完整性，如果失败会抛出错误
+- 解决：增加 exec 的 timeout 时间，建议 600 秒以上
+- 可用 `ffprobe -v quiet -show_streams output/trending_video.mp4` 检查时长
 
 **问题：B站上传失败**
 - 检查 config/config.json 中的 Cookie 是否有效
