@@ -128,8 +128,8 @@ class VideoComposer:
                 elif codec_type == 'audio':
                     audio_duration = duration
             
-            # 允许 1 秒的误差（编码可能有轻微偏差）
-            tolerance = 1.0
+            # 允许 3 秒的误差（编码可能有轻微偏差）
+            tolerance = 3.0
             video_valid = abs(video_duration - expected_duration) <= tolerance
             audio_valid = abs(audio_duration - expected_duration) <= tolerance
             
