@@ -3,7 +3,10 @@
 - 音频驱动时长
 - MoviePy合成
 - 1080p输出
+- 视频完整性验证
 """
+import subprocess
+import json
 from moviepy import ImageClip, AudioFileClip, concatenate_videoclips
 from typing import List, Dict
 from pathlib import Path
@@ -77,10 +80,70 @@ class VideoComposer:
             bitrate='5000k'
         )
         
+        # 验证视频完整性
+        expected_duration = final_video.duration
+        validation_result = self._validate_video(output_path, expected_duration)
+        
+        if not validation_result['valid']:
+            print(f"    ✗ 视频完整性验证失败:")
+            print(f"      预期时长: {expected_duration:.2f}s")
+            print(f"      视频流: {validation_result['video_duration']:.2f}s")
+            print(f"      音频流: {validation_result['audio_duration']:.2f}s")
+            raise ValueError(f"视频渲染不完整，视频流({validation_result['video_duration']:.2f}s)与预期时长({expected_duration:.2f}s)不匹配")
+        
         print(f"  ✓ 视频合成完成: {output_path}")
-        print(f"  总时长: {final_video.duration:.2f}秒")
+        print(f"  总时长: {validation_result['video_duration']:.2f}秒")
+        print(f"  ✓ 视频完整性验证通过")
         
         return output_path
+    
+    def _validate_video(self, video_path: str, expected_duration: float) -> dict:
+        """验证视频完整性：检查视频流和音频流时长是否匹配预期"""
+        try:
+            # 使用 ffprobe 获取视频信息
+            result = subprocess.run(
+                [
+                    'ffprobe', '-v', 'quiet', '-print_format', 'json',
+                    '-show_streams', video_path
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                return {'valid': False, 'error': 'ffprobe failed', 'video_duration': 0, 'audio_duration': 0}
+            
+            streams_info = json.loads(result.stdout)
+            
+            video_duration = 0
+            audio_duration = 0
+            
+            for stream in streams_info.get('streams', []):
+                codec_type = stream.get('codec_type')
+                duration = float(stream.get('duration', 0))
+                
+                if codec_type == 'video':
+                    video_duration = duration
+                elif codec_type == 'audio':
+                    audio_duration = duration
+            
+            # 允许 1 秒的误差（编码可能有轻微偏差）
+            tolerance = 1.0
+            video_valid = abs(video_duration - expected_duration) <= tolerance
+            audio_valid = abs(audio_duration - expected_duration) <= tolerance
+            
+            return {
+                'valid': video_valid and audio_valid,
+                'video_duration': video_duration,
+                'audio_duration': audio_duration,
+                'expected_duration': expected_duration,
+                'video_match': video_valid,
+                'audio_match': audio_valid
+            }
+            
+        except Exception as e:
+            return {'valid': False, 'error': str(e), 'video_duration': 0, 'audio_duration': 0}
     
     def get_video_info(self, video_path: str) -> dict:
         """获取视频信息"""
