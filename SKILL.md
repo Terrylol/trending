@@ -42,11 +42,11 @@ venv/bin/pip install Pillow edge-tts moviepy requests beautifulsoup4 lxml bilibi
 运行采集脚本获取今天的Trending列表（建议超时时间：120秒）：
 
 ```bash
-venv/bin/python src/trending_fetcher.py --limit 3 --since daily --output output/trending.json
+venv/bin/python src/trending_fetcher.py --limit 5 --since daily --output output/trending.json
 ```
 
 **参数说明**：
-- `--limit`: 项目数量（建议3个，避免视频过长）
+- `--limit`: 项目数量（建议5个，避免视频过长）
 - `--since`: 时间范围（daily/weekly/monthly）
 - `--output`: 输出文件路径
 
@@ -92,7 +92,7 @@ cat output/trending.json | jq '.projects[0]'
       "preview_image": "screenshots/project-name.png",
       "narrative": {
         "hook": "吸引人的开场白（30字左右）",
-        "body": "详细口语化介绍（150-200字）",
+        "body"        "body": "详细口语化介绍（100-150字）",
         "call_to_action": "引导观众行动的结尾（30字左右）"
       }
     }
@@ -104,14 +104,14 @@ cat output/trending.json | jq '.projects[0]'
 - **必须包含 preview_image 字段**（从 Step 1 获取）
 - 口语化表达，适合视频配音
 - `hook` 要吸引人，抓住观众注意力
-- `body` 通俗易懂，有感染力
+- `body` 严格控制在 **100-150字**，简明扼要
 - `call_to_action` 引导行动（如"快去试试吧"）
 
 将输出保存为 `output/projects_summary.json`
 
 ### Step 4: 生成视频
 
-运行视频生成脚本（**建议超时时间：600秒**，视频渲染耗时较长）：
+运行视频生成脚本（**建议超时时间：1000秒**，视频渲染耗时较长）：
 
 ```bash
 venv/bin/python src/workflow.py --projects "$(cat output/projects_summary.json)"
@@ -208,6 +208,6 @@ github-trending-video/          # 项目根目录
 3. **主动探索** - 不要依赖初始描述，深入探索每个项目
 4. **准确客观** - 基于实际数据，不要编造
 5. **口语表达** - 生成的文本要适合配音
-6. **保持简洁** - 每个项目200字以内
+6. **保持简洁** - 每个项目200字以内（hook 30 + body 100-150 + call_to_action 30）
 
 开始执行吧！按照Step 1-5完整执行整个工作流。

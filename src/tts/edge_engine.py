@@ -8,7 +8,7 @@ class EdgeTTSEngine(BaseTTS):
     
     def __init__(self):
         self.voice = "zh-CN-XiaoxiaoNeural"
-        self.rate = "+0%"
+        self.rate = "+30%"
         self.volume = "+0%"
     
     async def generate_audio(self, text: str, output_file: str) -> str:
