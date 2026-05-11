@@ -54,6 +54,8 @@ class TrendingFetcher:
             print(f"    处理项目 [{i+1}/{len(projects)}]: {project['name']}")
             project['preview_image'] = self._fetch_preview_image(project)
             project['readme'] = self._fetch_readme(project)
+            project['license'] = self._fetch_license(project)
+            project['topics'] = self._fetch_topics(project)
         
         return projects
     
@@ -162,6 +164,44 @@ class TrendingFetcher:
         """解析URL获取owner和repo"""
         parts = url.rstrip('/').split('/')
         return parts[-2], parts[-1]
+    
+    def _fetch_license(self, project: Dict) -> str:
+        """获取开源协议"""
+        owner, repo = self._parse_url(project['url'])
+        repo_url = f"https://api.github.com/repos/{owner}/{repo}"
+        
+        headers = {}
+        if self.github_token:
+            headers['Authorization'] = f'token {self.github_token}'
+        
+        try:
+            response = requests.get(repo_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                license_info = response.json().get('license')
+                if license_info:
+                    return license_info.get('spdx_id', '') or license_info.get('name', '')
+        except:
+            pass
+        
+        return ''
+    
+    def _fetch_topics(self, project: Dict) -> List[str]:
+        """获取项目标签"""
+        owner, repo = self._parse_url(project['url'])
+        repo_url = f"https://api.github.com/repos/{owner}/{repo}"
+        
+        headers = {}
+        if self.github_token:
+            headers['Authorization'] = f'token {self.github_token}'
+        
+        try:
+            response = requests.get(repo_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                return response.json().get('topics', [])
+        except:
+            pass
+        
+        return []
 
 
 def get_mock_projects(count: int = 3) -> List[Dict]:

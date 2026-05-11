@@ -4,8 +4,10 @@ TTS 语音生成
 支持降级：vectorengine 失败后自动降级到 edge-tts
 """
 import asyncio
+import random
 from typing import List, Dict
 from pathlib import Path
+import json
 import sys
 sys.path.insert(0, 'src')
 from tts import get_tts_engine
@@ -45,9 +47,20 @@ class TTSGenerator:
             else:
                 raise e
     
+    def _load_greetings(self) -> List[str]:
+        """加载问候语库"""
+        greetings_path = Path('config/greetings.json')
+        if greetings_path.exists():
+            with open(greetings_path) as f:
+                data = json.load(f)
+                return data.get('greetings', [])
+        return ["欢迎收看今天的 GitHub Trending 热门项目推荐。"]
+    
     def generate_intro_audio(self, date: str, output_file: str) -> str:
         """生成标题介绍语音"""
-        text = f"欢迎收看今天的 GitHub Trending 热门项目推荐。{date}"
+        greetings = self._load_greetings()
+        greeting = random.choice(greetings) if greetings else "欢迎收看今天的 GitHub Trending 热门项目推荐。"
+        text = greeting
         
         actual_file = asyncio.run(self.generate_audio(text, output_file))
         
@@ -74,10 +87,6 @@ class TTSGenerator:
         
         if narrative.get('call_to_action'):
             parts.append(narrative['call_to_action'])
-        
-        stars = project.get('stars', 0)
-        if stars:
-            parts.append(f"目前已获得{stars}个Star。")
         
         text = " ".join(parts)
         
