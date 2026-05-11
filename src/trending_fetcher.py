@@ -5,6 +5,7 @@ GitHub Trending采集
 - 可选使用GitHub Token提高限制
 """
 from typing import List, Dict
+import time
 import requests
 from PIL import Image
 from io import BytesIO
@@ -19,6 +20,7 @@ class TrendingFetcher:
         self.github_token = config.get('personal_access_token')
         self.screenshots_dir = Path('screenshots')
         self.screenshots_dir.mkdir(exist_ok=True)
+        self.max_retries = int(config.get('max_retries', 3))
     
     def fetch(self, limit: int = 15, since: str = 'daily') -> List[Dict]:
         """采集热门项目"""
@@ -32,7 +34,7 @@ class TrendingFetcher:
         if self.github_token:
             headers['Authorization'] = f'token {self.github_token}'
         
-        response = requests.get(url, headers=headers, timeout=20)
+        response = self._get(url, headers=headers, timeout=20, context='GitHub Trending 页面')
         
         if response.status_code != 200:
             raise Exception(f"请求失败: {response.status_code}")
@@ -59,6 +61,31 @@ class TrendingFetcher:
         
         return projects
     
+
+    def _get(self, url: str, *, headers: Dict = None, timeout: int = 10, context: str = '请求'):
+        """统一 GET：失败使用相同方法最多重试 max_retries 次。"""
+        last_error = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = requests.get(url, headers=headers, timeout=timeout)
+                if response.status_code == 200:
+                    return response
+                last_error = Exception(f"HTTP {response.status_code}")
+                retryable = response.status_code in (403, 408, 429) or response.status_code >= 500
+                if not retryable or attempt == self.max_retries:
+                    return response
+            except requests.RequestException as e:
+                last_error = e
+                if attempt == self.max_retries:
+                    raise
+
+            print(f"      ⚠ {context}失败，重试 {attempt}/{self.max_retries}: {last_error}")
+            time.sleep(min(2 * attempt, 6))
+
+        if last_error:
+            raise last_error
+        raise RuntimeError(f"{context}失败")
+
     def _parse_article(self, article) -> Dict:
         """解析单个项目"""
         try:
@@ -126,7 +153,7 @@ class TrendingFetcher:
         image_url = f"{self.preview_url}/{owner}/{repo}"
         
         try:
-            response = requests.get(image_url, timeout=10)
+            response = self._get(image_url, timeout=10, context=f"预览图 {owner}/{repo}")
             img = Image.open(BytesIO(response.content))
             
             # 缩放至适合卡片尺寸 (保持宽高比)
@@ -149,7 +176,7 @@ class TrendingFetcher:
             headers['Authorization'] = f'token {self.github_token}'
         
         try:
-            response = requests.get(readme_url, headers=headers, timeout=10)
+            response = self._get(readme_url, headers=headers, timeout=10, context=f"README {owner}/{repo}")
             
             if response.status_code == 200:
                 import base64
@@ -175,7 +202,7 @@ class TrendingFetcher:
             headers['Authorization'] = f'token {self.github_token}'
         
         try:
-            response = requests.get(repo_url, headers=headers, timeout=10)
+            response = self._get(repo_url, headers=headers, timeout=10, context=f"仓库信息 {owner}/{repo}")
             if response.status_code == 200:
                 license_info = response.json().get('license')
                 if license_info:
@@ -195,7 +222,7 @@ class TrendingFetcher:
             headers['Authorization'] = f'token {self.github_token}'
         
         try:
-            response = requests.get(repo_url, headers=headers, timeout=10)
+            response = self._get(repo_url, headers=headers, timeout=10, context=f"仓库 topics {owner}/{repo}")
             if response.status_code == 200:
                 return response.json().get('topics', [])
         except:
