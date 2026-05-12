@@ -33,43 +33,85 @@ venv/bin/pip install Pillow edge-tts moviepy requests beautifulsoup4 lxml bilibi
 
 ## 任务
 
-自动化生成GitHub Trending视频，包含完整流程：采集 → 探索 → 总结 → 生成视频 → 上传。
+自动化生成GitHub Trending视频，包含完整流程：采集候选 → 历史去重 → 探索 → 总结 → 生成视频 → 上传。
 
 ## 完整流程
 
-### Step 1: 采集 GitHub Trending
+### Step 1: 采集 GitHub Trending 候选
 
-运行采集脚本获取今天的Trending列表（建议超时时间：120秒）：
+运行采集脚本获取今天的 Trending 候选列表（建议超时时间：300秒）：
 
 ```bash
-venv/bin/python src/trending_fetcher.py --limit 5 --since daily --output output/trending.json
+venv/bin/python src/trending_fetcher.py --limit 15 --since daily --output output/trending_candidates.json
 ```
 
 **参数说明**：
-- `--limit`: 项目数量（建议5个，避免视频过长）
+- `--limit`: 候选项目数量。启用历史去重后使用 15，便于跳过重复项目后仍选满 Top 5。
 - `--since`: 时间范围（daily/weekly/monthly）
 - `--output`: 输出文件路径
 
 **输出内容**：
-- 项目基本信息（name, url, description, language, stars）
+- 项目基本信息（author, name, url, description, language, stars）
 - 项目预览图（保存在 screenshots/ 目录）
 - README 前500字符
 
 **验证输出**：
 ```bash
-cat output/trending.json | jq '.projects[0]'
+cat output/trending_candidates.json | jq '.projects[0]'
+```
+
+### Step 1.5: 历史去重筛选
+
+根据 `data/projects_history.json` 跳过最近 7 天已经成功生成视频/上传过的项目，输出最终 Top 5 到 `output/trending.json`：
+
+```bash
+venv/bin/python src/history_deduper.py \
+  --history data/projects_history.json \
+  select \
+  --input output/trending_candidates.json \
+  --output output/trending.json \
+  --target-count 5 \
+  --cooldown-days 7 \
+  --allow-repeat-if-insufficient
+```
+
+**历史文件格式**：
+```json
+{
+  "version": 1,
+  "runs": {
+    "2026-05-11": {
+      "status": "video_succeeded",
+      "fetched": ["owner/a", "owner/b"],
+      "selected": ["owner/a"],
+      "skipped_duplicates": ["owner/b"]
+    }
+  }
+}
+```
+
+**去重规则**：
+- 只读取最近 7 天 `status` 为 `video_succeeded` 或 `upload_succeeded` 的 run。
+- 这些 run 里的 `selected` 项目会被跳过。
+- `selected` / `failed` 状态不参与去重，避免失败任务污染历史。
+- 如果去重后不足 5 个，按原始 Trending 顺序补回重复项目。
+
+**验证输出**：
+```bash
+cat output/trending.json | jq '.projects | length'
+cat data/projects_history.json | jq '.runs'
 ```
 
 ### Step 2: 深度探索每个项目
 
-读取 Step 1 生成的 JSON，然后对**每个项目**进行深度探索：
+读取 Step 1.5 生成的 `output/trending.json`，然后对**每个项目**进行深度探索：
 
 **探索目标**：
 1. 访问项目的 GitHub 页面
 2. 理解项目的核心功能和价值
 3. 分析技术栈和架构特点
 4. 评估项目亮点和创新点
-5. **获取 preview_image 路径**（从 Step 1 输出中）
+5. **获取 preview_image 路径**（从 Step 1.5 输出的 `output/trending.json` 中）
 
 **不要只看初始描述！** 使用 WebFetch 工具深入了解项目 README。
 
@@ -77,7 +119,7 @@ cat output/trending.json | jq '.projects[0]'
 
 为每个项目生成口语化的介绍，用于视频配音。
 
-**重要**：必须合并 Step 1 和 Step 2 的数据！
+**重要**：必须合并 Step 1.5 和 Step 2 的数据！
 
 **输出格式**：
 
@@ -92,7 +134,7 @@ cat output/trending.json | jq '.projects[0]'
       "preview_image": "screenshots/project-name.png",
       "narrative": {
         "hook": "吸引人的开场白（30字左右）",
-        "body"        "body": "详细口语化介绍（100-150字）",
+        "body": "详细口语化介绍（100-150字）",
         "call_to_action": "引导观众行动的结尾（30字左右）"
       }
     }
@@ -101,7 +143,7 @@ cat output/trending.json | jq '.projects[0]'
 ```
 
 **关键要求**：
-- **必须包含 preview_image 字段**（从 Step 1 获取）
+- **必须包含 preview_image 字段**（从 Step 1.5 获取）
 - 口语化表达，适合视频配音
 - `hook` 要吸引人，抓住观众注意力
 - `body` 严格控制在 **100-150字**，简明扼要
@@ -132,6 +174,16 @@ ls -lh output/trending_video.mp4
 
 **⚠️ 重要**：视频渲染是逐帧处理的，非常耗时。如果进程被中断，MoviePy 可能输出不完整的视频。脚本已添加完整性验证，会自动检测并报错。
 
+**视频生成成功后，必须更新历史状态**：
+```bash
+venv/bin/python src/history_deduper.py --history data/projects_history.json status --status video_succeeded
+```
+
+如果 Step 1.5 之后任一步骤失败，且当天 run 已写入 history，都必须将当天状态标记为 failed：
+```bash
+venv/bin/python src/history_deduper.py --history data/projects_history.json status --status failed
+```
+
 ### Step 5: 上传到B站
 
 运行上传脚本：
@@ -145,9 +197,16 @@ venv/bin/python upload.py
 - Cookie 有效期检查：如果上传失败，可能需要更新 Cookie
 
 **上传参数**：
-- 标题：`GitHub 今日热榜 Top 3 (日期)`
+- 标题：`GitHub 今日热榜 Top 5 (日期)`
 - 标签：GitHub, 开源项目, 编程, 技术分享, AI
 - 分区：科技区 → 知识 → 科学 → 其他
+
+**上传成功后，可选更新历史状态**：
+```bash
+venv/bin/python src/history_deduper.py --history data/projects_history.json status --status upload_succeeded
+```
+
+如果上传失败但视频已生成成功，保持 `video_succeeded`，因为项目已经被视频介绍过。
 
 ## 文件结构
 
@@ -160,6 +219,7 @@ github-trending-video/          # 项目根目录
 │   └── config.example.json     # 配置模板
 ├── src/
 │   ├── trending_fetcher.py     # Step 1: 采集脚本
+│   ├── history_deduper.py      # Step 1.5: 历史去重
 │   ├── workflow.py              # Step 4: 视频生成
 │   ├── bilibili_uploader.py     # B站上传核心逻辑
 │   ├── card_generator.py        # 幻灯片生成
@@ -169,8 +229,11 @@ github-trending-video/          # 项目根目录
 │   ├── Project1.png
 │   ├── Project2.png
 │   └── Project3.png
-└── output/                     # 输出目录
-    ├── trending.json           # Step 1输出
+├── data/                       # 长期状态目录
+│   └── projects_history.json   # 历史去重记录（自动创建）
+├── output/                     # 输出目录
+    ├── trending_candidates.json # Step 1候选输出
+    ├── trending.json           # Step 1.5筛选输出
     ├── projects_summary.json   # Step 3输出
     └── trending_video.mp4      # 最终视频
 ```
@@ -203,11 +266,11 @@ github-trending-video/          # 项目根目录
 
 ## 执行要求
 
-1. **完整执行** - 不要跳过任何步骤，从Step 1到Step 5完整执行
-2. **数据合并** - Step 3 必须合并 Step 1 的数据（preview_image）
+1. **完整执行** - 不要跳过任何步骤，从Step 1到Step 5完整执行，包含 Step 1.5 历史去重
+2. **数据合并** - Step 3 必须合并 Step 1.5 的数据（preview_image）
 3. **主动探索** - 不要依赖初始描述，深入探索每个项目
 4. **准确客观** - 基于实际数据，不要编造
 5. **口语表达** - 生成的文本要适合配音
 6. **保持简洁** - 每个项目200字以内（hook 30 + body 100-150 + call_to_action 30）
 
-开始执行吧！按照Step 1-5完整执行整个工作流。
+开始执行吧！按照 Step 1、Step 1.5、Step 2-5 完整执行整个工作流。

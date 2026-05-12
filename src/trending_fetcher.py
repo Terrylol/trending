@@ -148,23 +148,29 @@ class TrendingFetcher:
             return None
     
     def _fetch_preview_image(self, project: Dict) -> str:
-        """获取项目预览图"""
+        """获取项目预览图（最多重试 max_retries 次）"""
         owner, repo = self._parse_url(project['url'])
         image_url = f"{self.preview_url}/{owner}/{repo}"
         
-        try:
-            response = self._get(image_url, timeout=10, context=f"预览图 {owner}/{repo}")
-            img = Image.open(BytesIO(response.content))
-            
-            # 缩放至适合卡片尺寸 (保持宽高比)
-            img = img.resize((750, 394))
-            
-            image_path = self.screenshots_dir / f"{repo}.png"
-            img.save(image_path)
-            return str(image_path)
-        except Exception as e:
-            print(f"      获取预览图失败: {e}")
-            return ""
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = self._get(image_url, timeout=10, context=f"预览图 {owner}/{repo}")
+                img = Image.open(BytesIO(response.content))
+                
+                # 缩放至适合卡片尺寸 (保持宽高比)
+                img = img.resize((750, 394))
+                
+                image_path = self.screenshots_dir / f"{repo}.png"
+                img.save(image_path)
+                return str(image_path)
+            except Exception as e:
+                print(f"      ⚠ 获取预览图失败，重试 {attempt}/{self.max_retries}: {e}")
+                if attempt == self.max_retries:
+                    print(f"      获取预览图最终失败: {owner}/{repo}")
+                    return ""
+                time.sleep(min(2 * attempt, 6))
+        
+        return ""
     
     def _fetch_readme(self, project: Dict) -> str:
         """获取README"""
