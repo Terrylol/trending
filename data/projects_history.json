@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "runs": {
+    "2026-05-11": {
+      "status": "video_succeeded",
+      "fetched": [
+        "bytedance/UI-TARS-desktop",
+        "anthropics/financial-services",
+        "addyosmani/agent-skills",
+        "CloakHQ/CloakBrowser",
+        "HKUDS/AI-Trader",
+        "jundot/omlx",
+        "datawhalechina/easy-vibe",
+        "playcanvas/supersplat",
+        "lsdefine/GenericAgent",
+        "decolua/9router",
+        "datawhalechina/hello-agents"
+      ],
+      "selected": [
+        "bytedance/UI-TARS-desktop",
+        "anthropics/financial-services",
+        "addyosmani/agent-skills",
+        "CloakHQ/CloakBrowser",
+        "HKUDS/AI-Trader"
+      ],
+      "skipped_duplicates": []
+    },
+    "2026-05-12": {
+      "status": "upload_succeeded",
+      "fetched": [
+        "bytedance/UI-TARS-desktop",
+        "CloakHQ/CloakBrowser",
+        "yikart/AiToEarn",
+        "playcanvas/supersplat",
+        "datawhalechina/easy-vibe",
+        "decolua/9router",
+        "tinyhumansai/openhuman",
+        "millionco/react-doctor",
+        "Lordog/dive-into-llms",
+        "AUTOMATIC1111/stable-diffusion-webui",
+        "rasbt/LLMs-from-scratch",
+        "NousResearch/hermes-agent",
+        "rohitg00/agentmemory"
+      ],
+      "selected": [
+        "yikart/AiToEarn",
+        "playcanvas/supersplat",
+        "datawhalechina/easy-vibe",
+        "decolua/9router",
+        "tinyhumansai/openhuman"
+      ],
+      "skipped_duplicates": [
+        "bytedance/UI-TARS-desktop",
+        "CloakHQ/CloakBrowser"
+      ]
+    }
+  }
+}
