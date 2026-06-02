@@ -8,11 +8,39 @@ from typing import List, Dict
 from datetime import datetime
 from pathlib import Path
 import json
+import os
 import sys
 
 from card_generator import CardGenerator
 from tts_generator import TTSGenerator
 from video_composer import VideoComposer
+from remotion_composer import RemotionComposer
+
+
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+            stream.flush()
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+
+def setup_run_logging() -> Path:
+    logs_dir = Path('output') / 'logs'
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + f'_{os.getpid()}'
+    log_path = logs_dir / f'workflow_{run_id}.log'
+    log_file = open(log_path, 'a', encoding='utf-8', buffering=1)
+    sys.stdout = Tee(sys.__stdout__, log_file)
+    sys.stderr = Tee(sys.__stderr__, log_file)
+    print(f"[workflow] log_file={log_path}")
+    return log_path
 
 
 class VideoWorkflow:
@@ -24,7 +52,13 @@ class VideoWorkflow:
         tts_config = config.get('tts', {'engine': 'edge', 'apikey': ''})
         self.tts_generator = TTSGenerator(tts_config)
         
-        self.video_composer = VideoComposer({'resolution': '1920x1080', 'fps': 24})
+        video_config = config.get('video', {})
+        self.video_renderer = video_config.get('renderer', 'moviepy')
+        renderer_config = {'resolution': video_config.get('resolution', '1920x1080'), 'fps': video_config.get('fps', 24)}
+        if self.video_renderer == 'remotion':
+            self.video_composer = RemotionComposer(renderer_config)
+        else:
+            self.video_composer = VideoComposer(renderer_config)
         self.output_dir = Path('output')
         self.output_dir.mkdir(exist_ok=True)
     
@@ -50,16 +84,24 @@ class VideoWorkflow:
         print("=" * 60)
         print(f"日期: {date}")
         print(f"项目数: {len(projects)}")
+        print(f"渲染器: {self.video_renderer}")
         print("=" * 60)
+
+        projects = self._enrich_projects(projects)
         
-        # Step 1: 生成幻灯片
-        slides = self._generate_slides(projects, date)
+        # Step 1: Remotion 直接使用项目数据；MoviePy 需要先生成静态幻灯片
+        slides = []
+        if self.video_renderer != 'remotion':
+            slides = self._generate_slides(projects, date)
         
         # Step 2: 生成语音
         audio_files = self._generate_audio(projects, date)
         
         # Step 3: 合成视频
-        video_path = self._compose_video(slides, audio_files)
+        if self.video_renderer == 'remotion':
+            video_path = self._compose_remotion_video(projects, audio_files)
+        else:
+            video_path = self._compose_video(slides, audio_files)
         
         print("\n" + "=" * 60)
         print("✓ 视频生成完成")
@@ -68,6 +110,43 @@ class VideoWorkflow:
         
         return video_path
     
+    def _enrich_projects(self, projects: List[Dict]) -> List[Dict]:
+        """用 trending.json 补齐 preview_image/url/stars 等渲染必需字段。优先按 url/author+name 匹配，避免同名仓库串数据。"""
+        trending_path = self.output_dir / 'trending.json'
+        if not trending_path.exists():
+            return projects
+
+        with open(trending_path) as f:
+            trending_data = json.load(f)
+
+        def repo_key(project: Dict) -> str:
+            url = (project.get('url') or '').rstrip('/')
+            if url:
+                return url.lower()
+            author = (project.get('author') or project.get('owner') or '').strip().strip('/')
+            name = (project.get('name') or '').strip().strip('/')
+            return f'{author}/{name}'.lower() if author and name else name.lower()
+
+        trending_projects = {}
+        trending_by_name = {}
+        for p in trending_data.get('projects', []):
+            key = repo_key(p)
+            if key:
+                trending_projects[key] = p
+            if p.get('name'):
+                trending_by_name.setdefault(p.get('name'), p)
+
+        enriched = []
+        for project in projects:
+            merged = dict(project)
+            trending_project = trending_projects.get(repo_key(merged)) or trending_by_name.get(merged.get('name', ''))
+            if trending_project:
+                for key in ['preview_image', 'language', 'stars', 'url', 'description', 'license', 'topics', 'author', 'owner']:
+                    if key not in merged and key in trending_project:
+                        merged[key] = trending_project[key]
+            enriched.append(merged)
+        return enriched
+
     def _generate_slides(self, projects: List[Dict], date: str) -> List[str]:
         """生成幻灯片"""
         print("\n[Step 1/3] 生成幻灯片")
@@ -79,30 +158,9 @@ class VideoWorkflow:
         self.card_generator.generate_title_card(date, title_path)
         slides.append(title_path)
         
-        # 加载trending.json获取preview_image
-        trending_data = {}
-        trending_path = self.output_dir / 'trending.json'
-        if trending_path.exists():
-            import json
-            with open(trending_path) as f:
-                trending_data = json.load(f)
-                trending_projects = {p['name']: p for p in trending_data.get('projects', [])}
-        
         # 项目卡片
         for i, project in enumerate(projects):
             slide_path = str(self.output_dir / f"slide_{i}.png")
-            
-            # 合并trending数据（preview_image等）
-            project_name = project.get('name', '')
-            if project_name in trending_projects:
-                trending_project = trending_projects[project_name]
-                # 添加preview_image
-                if 'preview_image' not in project and 'preview_image' in trending_project:
-                    project['preview_image'] = trending_project['preview_image']
-                # 添加其他字段
-                for key in ['language', 'stars', 'url', 'description']:
-                    if key not in project and key in trending_project:
-                        project[key] = trending_project[key]
             
             # 直接传递完整的项目数据
             self.card_generator.generate_project_card(project, i, slide_path)
@@ -124,6 +182,13 @@ class VideoWorkflow:
         
         return audio_files
     
+    def _compose_remotion_video(self, projects: List[Dict], audio_files: List[str]) -> str:
+        """使用 Remotion 合成视频"""
+        print("\n[Step 3/3] Remotion 合成视频")
+        output_path = str(self.output_dir / "trending_video.mp4")
+        self.video_composer.compose(projects, audio_files, output_path)
+        return output_path
+
     def _compose_video(self, slides: List[str], audio_files: List[str]) -> str:
         """合成视频"""
         print("\n[Step 3/3] 合成视频")
@@ -136,6 +201,8 @@ class VideoWorkflow:
 
 def main():
     """主函数"""
+    setup_run_logging()
+
     if len(sys.argv) < 2:
         print("使用方式: python workflow.py --projects '<JSON>'")
         sys.exit(1)
