@@ -30,7 +30,15 @@ class RemotionComposer:
         self.logs_dir = self.output_dir / 'logs'
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + f'_{os.getpid()}'
-        self.card_generator = CardGenerator({'resolution': config.get('resolution', '1280x720'), 'fps': self.fps})
+        # 分辨率：从 config 读取，格式 "WIDTHxHEIGHT"，默认 1280x720
+        resolution = config.get('resolution', '1280x720')
+        try:
+            self.width, self.height = [int(x) for x in resolution.split('x')]
+        except (ValueError, AttributeError):
+            print(f'    ⚠ 无效分辨率 "{resolution}"，降级为 1280x720')
+            self.width, self.height = 1280, 720
+
+        self.card_generator = CardGenerator({'resolution': f'{self.width}x{self.height}', 'fps': self.fps})
 
     def compose(self, projects: List[Dict], audio_files: List[str], output_path: str) -> str:
         print('  Remotion 生成场景画面 + ffmpeg 合成视频...')
@@ -63,8 +71,8 @@ class RemotionComposer:
             'node', 'render_segments.mjs',
             '--input', str((self.root_dir / input_path).resolve()),
             '--out-dir', str((self.root_dir / segment_dir).resolve()),
-            '--width', '1280',
-            '--height', '720',
+            '--width', str(self.width),
+            '--height', str(self.height),
             '--concurrency', '1',
             '--crf', '18',
             '--x264-preset', 'medium',
