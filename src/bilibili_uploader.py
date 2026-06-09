@@ -48,11 +48,11 @@ class BilibiliUploader:
         # 生成标签
         tags = ["GitHub", "开源项目", "编程", "技术分享", "AI"]
         
-        # 使用第一张幻灯片作为封面
+        # 使用视频截图作为封面
         import os
         from pathlib import Path
         output_dir = Path('output')
-        cover_path = str(output_dir / 'slide_0.png') if (output_dir / 'slide_0.png').exists() else None
+        cover_path = str(output_dir / 'cover.png') if (output_dir / 'cover.png').exists() else None
         
         print(f"    标题: {title}")
         print(f"    标签: {','.join(tags)}")

@@ -240,20 +240,13 @@ ls -lh output/trending_video.mp4
 ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_type,codec_name,width,height,r_frame_rate,duration -of json output/trending_video.mp4
 ```
 
-**必须验证 Remotion 新流程闭环**：
+**Remotion 流程闭环检查（轻量）**：
 ```bash
 cat output/remotion_input.json | jq '.scenes[] | {type, index, project: .project.name, preview: .project.public_preview_image, star_history: .project.star_history_image}'
 ls -lh remotion/public/generated/github_logo.png
 find remotion/public/generated/star_history -type f -maxdepth 1 -name '*.png' -print
 ls -lh output/remotion_segments/segment_*.mp4
 ```
-
-**必须验证 segment 类型，防止所有片段都变成标题页**：
-- 抽帧检查：
-  - `segment_00` 应为标题页
-  - `segment_01` / `segment_02` 应为项目页，项目名应匹配 `output/remotion_input.json`
-  - 最后一段应为 ending 页
-- 如果发现所有 segment 都是「今日热门项目推荐」，立即停止并检查 `remotion/src/SceneSegment.tsx` 是否仍使用 `getInputProps()` 读取当前 `scene/sceneIndex`。
 
 **⚠️ 重要**：视频渲染是逐帧处理的，非常耗时。如果进程被中断，可能输出不完整的视频。脚本已添加完整性验证，会自动检测并报错。失败时先看 `output/logs/` 里的日志，不要先猜原因。
 
@@ -381,11 +374,6 @@ github-trending-video/          # 项目根目录
 - 当前代码会在同一次 `render_segments.mjs` 运行内只重试失败 segment，默认 `--segment-retries 3`。
 - 不要因为 `segment_05` 崩溃就手动从 `segment_00` 全量重跑。
 - 如果需要手动补渲某段，用 `--scene-index <n>`，不要传 `--clean-out-dir`。
-
-**问题：所有 segment 都是开头“今日热门项目推荐”**
-- 这是重大 bug，说明 `SceneSegment` 没有读取当前 render 的 input props。
-- 检查 `remotion/src/SceneSegment.tsx`：组件内必须使用 `getInputProps()` 读取当前 `scene/sceneIndex`，不能只依赖 `Composition.defaultProps`。
-- 修复后必须抽帧验证 `segment_01/02` 是项目页，而不是标题页。
 
 **问题：B站上传失败**
 - 检查 config/config.json 中的 Cookie 是否有效

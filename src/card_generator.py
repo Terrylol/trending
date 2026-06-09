@@ -125,84 +125,102 @@ class CardGenerator:
         img.save(output_path)
         print(f"    ✓ 标题卡片: {output_path}")
     
-    def _fetch_star_history_image(self, owner: str, repo: str) -> Optional[str]:
-        """获取 Star 历史趋势图并转换为 PNG"""
-        try:
-            url = f"https://api.star-history.com/chart?repos={owner}/{repo}&type=date&theme=light"
-            
-            cache_file = self.star_history_dir / f"{owner}_{repo}.png"
-            if cache_file.exists():
+    def _fetch_star_history_image(self, owner: str, repo: str, max_retries: int = 3) -> Optional[str]:
+        """获取 Star 历史趋势图并转换为 PNG（含重试 + 24h 缓存过期）"""
+        cache_file = self.star_history_dir / f"{owner}_{repo}.png"
+        
+        # 缓存有效期 24 小时
+        if cache_file.exists():
+            import time as _time
+            cache_age = _time.time() - cache_file.stat().st_mtime
+            if cache_age < 86400:  # 24h = 86400s
                 return str(cache_file)
-            
-            response = requests.get(url, timeout=30)
-            if response.status_code != 200:
-                print(f"      Star 历史图获取失败: HTTP {response.status_code}")
+            else:
+                cache_file.unlink(missing_ok=True)
+        
+        url = f"https://api.star-history.com/chart?repos={owner}/{repo}&type=date&theme=light"
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.get(url, timeout=30)
+                if response.status_code != 200:
+                    print(f"      ⚠ Star 历史图获取失败 {owner}/{repo}: HTTP {response.status_code} (重试 {attempt}/{max_retries})")
+                    if attempt < max_retries:
+                        import time as _time
+                        _time.sleep(min(2 * attempt, 6))
+                        continue
+                    return None
+                
+                svg_content = response.content
+                svg_temp = tempfile.NamedTemporaryFile(suffix='.svg', delete=False)
+                svg_temp.write(svg_content)
+                svg_temp.close()
+                
+                width = 550
+                height = 360
+                
+                # 尝试 cairosvg
+                try:
+                    import cairosvg
+                    cairosvg.svg2png(
+                        url=svg_temp.name,
+                        write_to=str(cache_file),
+                        output_width=width,
+                        output_height=height
+                    )
+                    if cache_file.exists():
+                        os.unlink(svg_temp.name)
+                        return str(cache_file)
+                except ImportError:
+                    pass
+                
+                # 尝试 rsvg-convert
+                try:
+                    result = subprocess.run([
+                        'rsvg-convert',
+                        '-w', str(width),
+                        '-h', str(height),
+                        '-o', str(cache_file),
+                        svg_temp.name
+                    ], capture_output=True, timeout=30)
+                    
+                    if result.returncode == 0 and cache_file.exists():
+                        os.unlink(svg_temp.name)
+                        return str(cache_file)
+                except (subprocess.SubprocessError, FileNotFoundError):
+                    pass
+                
+                # 尝试 inkscape
+                try:
+                    result = subprocess.run([
+                        'inkscape', svg_temp.name,
+                        '--export-type=png',
+                        f'--export-filename={cache_file}',
+                        f'--export-width={width}',
+                        f'--export-height={height}'
+                    ], capture_output=True, timeout=30)
+                    
+                    if result.returncode == 0 and cache_file.exists():
+                        os.unlink(svg_temp.name)
+                        return str(cache_file)
+                except (subprocess.SubprocessError, FileNotFoundError):
+                    pass
+                
+                if os.path.exists(svg_temp.name):
+                    os.unlink(svg_temp.name)
+                
+                print(f"      ⚠ Star 历史图转换失败: 需要 cairosvg/rsvg-convert/inkscape")
                 return None
-            
-            svg_content = response.content
-            svg_temp = tempfile.NamedTemporaryFile(suffix='.svg', delete=False)
-            svg_temp.write(svg_content)
-            svg_temp.close()
-            
-            width = 550
-            height = 360
-            
-            # 尝试 cairosvg
-            try:
-                import cairosvg
-                cairosvg.svg2png(
-                    url=svg_temp.name,
-                    write_to=str(cache_file),
-                    output_width=width,
-                    output_height=height
-                )
-                if cache_file.exists():
-                    os.unlink(svg_temp.name)
-                    return str(cache_file)
-            except ImportError:
-                pass
-            
-            # 尝试 rsvg-convert
-            try:
-                result = subprocess.run([
-                    'rsvg-convert',
-                    '-w', str(width),
-                    '-h', str(height),
-                    '-o', str(cache_file),
-                    svg_temp.name
-                ], capture_output=True, timeout=30)
                 
-                if result.returncode == 0 and cache_file.exists():
-                    os.unlink(svg_temp.name)
-                    return str(cache_file)
-            except (subprocess.SubprocessError, FileNotFoundError):
-                pass
-            
-            # 尝试 inkscape
-            try:
-                result = subprocess.run([
-                    'inkscape', svg_temp.name,
-                    '--export-type=png',
-                    f'--export-filename={cache_file}',
-                    f'--export-width={width}',
-                    f'--export-height={height}'
-                ], capture_output=True, timeout=30)
-                
-                if result.returncode == 0 and cache_file.exists():
-                    os.unlink(svg_temp.name)
-                    return str(cache_file)
-            except (subprocess.SubprocessError, FileNotFoundError):
-                pass
-            
-            if os.path.exists(svg_temp.name):
-                os.unlink(svg_temp.name)
-            
-            print(f"      Star 历史图转换失败: 需要 cairosvg/rsvg-convert/inkscape")
-            return None
-            
-        except Exception as e:
-            print(f"      Star 历史图获取失败: {e}")
-            return None
+            except (requests.RequestException, subprocess.TimeoutExpired) as e:
+                print(f"      ⚠ Star 历史图获取异常 {owner}/{repo} (重试 {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    import time as _time
+                    _time.sleep(min(2 * attempt, 6))
+                    continue
+                return None
+        
+        return None
     
     def generate_project_card(self, project: Dict, index: int, output_path: str):
         """生成项目卡片（包含 Star 历史趋势图）"""
