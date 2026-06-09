@@ -56,8 +56,9 @@ class TrendingFetcher:
             print(f"    处理项目 [{i+1}/{len(projects)}]: {project['name']}")
             project['preview_image'] = self._fetch_preview_image(project)
             project['readme'] = self._fetch_readme(project)
-            project['license'] = self._fetch_license(project)
-            project['topics'] = self._fetch_topics(project)
+            meta = self._fetch_repo_metadata(project)
+            project['license'] = meta['license']
+            project['topics'] = meta['topics']
         
         return projects
     
@@ -188,8 +189,9 @@ class TrendingFetcher:
                 import base64
                 content = base64.b64decode(response.json()['content']).decode()
                 return content[:500]  # 只取前500字符
-        except:
-            pass
+            print(f"      ⚠ README 获取失败 {owner}/{repo}: HTTP {response.status_code}")
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"      ⚠ README 获取异常 {owner}/{repo}: {e}")
         
         return project.get('description', '')
     
@@ -198,8 +200,8 @@ class TrendingFetcher:
         parts = url.rstrip('/').split('/')
         return parts[-2], parts[-1]
     
-    def _fetch_license(self, project: Dict) -> str:
-        """获取开源协议"""
+    def _fetch_repo_metadata(self, project: Dict) -> Dict:
+        """获取仓库元数据（license + topics），合并为单次 API 调用"""
         owner, repo = self._parse_url(project['url'])
         repo_url = f"https://api.github.com/repos/{owner}/{repo}"
         
@@ -208,33 +210,19 @@ class TrendingFetcher:
             headers['Authorization'] = f'token {self.github_token}'
         
         try:
-            response = self._get(repo_url, headers=headers, timeout=10, context=f"仓库信息 {owner}/{repo}")
+            response = self._get(repo_url, headers=headers, timeout=10, context=f"仓库元数据 {owner}/{repo}")
             if response.status_code == 200:
-                license_info = response.json().get('license')
+                data = response.json()
+                license_info = data.get('license')
+                license_name = ''
                 if license_info:
-                    return license_info.get('spdx_id', '') or license_info.get('name', '')
-        except:
-            pass
+                    license_name = license_info.get('spdx_id', '') or license_info.get('name', '')
+                topics = data.get('topics', [])
+                return {'license': license_name, 'topics': topics}
+        except Exception as e:
+            print(f"      ⚠ 获取仓库元数据失败 {owner}/{repo}: {e}")
         
-        return ''
-    
-    def _fetch_topics(self, project: Dict) -> List[str]:
-        """获取项目标签"""
-        owner, repo = self._parse_url(project['url'])
-        repo_url = f"https://api.github.com/repos/{owner}/{repo}"
-        
-        headers = {}
-        if self.github_token:
-            headers['Authorization'] = f'token {self.github_token}'
-        
-        try:
-            response = self._get(repo_url, headers=headers, timeout=10, context=f"仓库 topics {owner}/{repo}")
-            if response.status_code == 200:
-                return response.json().get('topics', [])
-        except:
-            pass
-        
-        return []
+        return {'license': '', 'topics': []}
 
 
 def get_mock_projects(count: int = 3) -> List[Dict]:
