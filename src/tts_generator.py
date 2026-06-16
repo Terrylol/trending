@@ -20,10 +20,10 @@ class TTSGenerator:
         self.tts_engine = get_tts_engine(self.engine_name, self.apikey)
         self.audio_format = self.tts_engine.get_audio_format()
         
-        # 降级引擎（仅 vectorengine 需要降级）
+        # 降级引擎（vectorengine / volcengine 需要降级到 edge）
         self.fallback_engine = None
         self.fallback_format = None
-        if self.engine_name == 'vectorengine':
+        if self.engine_name in ('vectorengine', 'volcengine'):
             self.fallback_engine = get_tts_engine('edge')
             self.fallback_format = self.fallback_engine.get_audio_format()
         
@@ -34,7 +34,7 @@ class TTSGenerator:
     async def generate_audio(self, text: str, output_file: str):
         """生成单个音频文件，失败时自动降级"""
         try:
-            await self.tts_engine.generate_audio(text, output_file)
+            return await self.tts_engine.generate_audio(text, output_file)
         except Exception as e:
             if self.fallback_engine:
                 print(f"      ⚠ {self.engine_name} 失败，降级到 edge-tts...")
