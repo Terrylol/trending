@@ -566,3 +566,83 @@ def test_clean_markdown_preserves_chinese():
     raw = '## 标题\n\n这是中文内容，用于测试清洗逻辑。\n\n```bash\ncode block\n```\n'
     out = TrendingFetcher._clean_markdown(raw)
     assert '这是中文内容' in out
+
+
+# ---------- 降级数据的增速语义（回归）----------
+
+def test_search_api_marks_growth_as_estimated():
+    """降级路径的 currentPeriodStars 是日均值，必须打 estimated 标记。
+
+    GitHub search 索引里没有 star 时间序列，拿不到真实日增。
+    这个标记决定展示层能否写「today」——写错就是假标题。
+    """
+    f = TrendingFetcher({'github': {'personal_access_token': 'fake'}})
+
+    class FakeResp:
+        status_code = 200
+        @staticmethod
+        def json():
+            return {'items': [{
+                'owner': {'login': 'a', 'avatar_url': 'x'},
+                'name': 'b', 'full_name': 'a/b', 'html_url': 'https://github.com/a/b',
+                'description': 'd', 'language': 'Python',
+                'stargazers_count': 1000, 'forks_count': 10,
+                'created_at': '2026-09-01T00:00:00Z',
+                'fork': False, 'archived': False,
+            }]}
+
+    f._get = lambda *a, **k: FakeResp()
+    result = f._fetch_via_search_api(limit=5)
+
+    assert result, '降级路径应返回结果'
+    assert result[0].get('growth_estimated') is True, \
+        'search API 的增速必须标记为估算值'
+
+
+def test_trending_html_marks_growth_as_real():
+    """第一层是真实日增，必须显式标记为非估算。"""
+    card = {
+        'author': 'a', 'name': 'b', 'full_name': 'a/b',
+        'avatar': '', 'url': 'https://github.com/a/b',
+        'description': 'd', 'language': 'Python', 'languageColor': '#fff',
+        'stars': 100, 'forks': 5, 'currentPeriodStars': 77,
+    }
+    html = ('<article class="Box-row"><h2><a href="/a/b">a/b</a></h2>'
+            '<p class="col-9">desc</p>'
+            '<span itemprop="programmingLanguage">Python</span>'
+            '<span class="repo-language-color" style="background-color: #f00"></span>'
+            '<a href="/a/b/stargazers">100</a>'
+            '<a href="/a/b/forks">5</a>'
+            '<span>77 stars today</span></article>')
+
+    import bs4
+    f = TrendingFetcher({})
+    parsed = f._parse_article(bs4.BeautifulSoup(html, 'html.parser'))
+    assert parsed is not None
+    assert parsed['currentPeriodStars'] == 77, '真实日增应正确解析'
+    assert parsed.get('growth_estimated') is False, \
+        '第一层必须标记为真实日增（growth_estimated=False）'
+
+
+def test_title_avoids_fake_daily_growth():
+    """回归测试：降级数据下标题不能写「一天涨了 N 星」——那是日均值不是日增。"""
+    import os as _os
+    _os.environ.setdefault('BILIBILI_SESSDATA', 'x' * 30)
+    _os.environ.setdefault('BILIBILI_BILI_JCT', 'y' * 32)
+    _os.environ.setdefault('BILIBILI_BUVID3', 'z' * 30)
+
+    from bilibili_uploader import BilibiliUploader
+    uploader = BilibiliUploader({'tid': 122})
+
+    estimated = [{
+        'name': 'laya', 'currentPeriodStars': 2027, 'growth_estimated': True,
+    }]
+    title = uploader._build_title(estimated)
+    assert '一天涨了' not in title, f'降级数据不能产生日增钩子: {title}'
+    assert '2027' not in title, f'降级数据不能把日均值当日增写进标题: {title}'
+
+    real = [{
+        'name': 'ponytail', 'currentPeriodStars': 1289, 'growth_estimated': False,
+    }]
+    real_title = uploader._build_title(real)
+    assert '一天涨了 1,289 星' in real_title, f'真实日增应正常做钩子: {real_title}'

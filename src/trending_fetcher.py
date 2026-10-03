@@ -189,7 +189,9 @@ class TrendingFetcher:
                 'languageColor': language_color,
                 'stars': stars,
                 'forks': forks,
+                # 第一层是真实日增（Trending 页面直接给出）
                 'currentPeriodStars': stars_today,
+                'growth_estimated': False,
                 'readme': '',
             }
         except Exception as e:
@@ -257,13 +259,18 @@ class TrendingFetcher:
                 'language': item.get('language') or '',
                 'stars': stars,
                 'forks': item.get('forks_count', 0),
-                # 用 stars/age 近似增速，让字段语义保持一致
+                # 重要：这是「总星数 ÷ 项目年龄」的日均值，不是真实日增。
+                # GitHub search 索引里没有 star 时间序列，拿不到真实增速。
+                # currentPeriodStars 字段保留是为了让下游排序/去重逻辑统一工作，
+                # 但它必须配合 growth_estimated=True 一起使用 ——
+                # 展示层要据此明确标注，不能当作「今日新增」呈现。
                 'currentPeriodStars': int(stars / age_days),
+                'growth_estimated': True,
                 'languageColor': '#cccccc',
                 'readme': '',
             })
 
-        # 按增速排序（近似），而非总星数
+        # 按估算增速排序（近似），而非总星数
         candidates.sort(key=lambda p: p['currentPeriodStars'], reverse=True)
         return candidates[:limit]
 

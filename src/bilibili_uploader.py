@@ -39,19 +39,26 @@ class BilibiliUploader:
 
         原实现是 `GitHub 今日热榜 Top 5 (20261004)` —— 只有日期没有钩子。
         这里取「今日涨星最多」的项目名做钩子，因为它是观众最可能点开的那个。
+
+        注意：降级数据（growth_estimated=True）的增速是日均值而非真实日增，
+        拿它写「一天涨了 N 星」会是假标题，因此那种情况走备用文案。
         """
         date = datetime.now().strftime('%m月%d日')
         if not projects:
             return f'GitHub 今日热榜 ({date})'
 
-        hottest = max(projects,
-                      key=lambda p: int(p.get('currentPeriodStars') or 0))
-        name = str(hottest.get('name') or '').strip()
-        today = int(hottest.get('currentPeriodStars') or 0)
+        # 只用真实日增数据做钩子
+        real_growth = [p for p in projects if not p.get('growth_estimated')]
+        if real_growth:
+            hottest = max(real_growth,
+                          key=lambda p: int(p.get('currentPeriodStars') or 0))
+            name = str(hottest.get('name') or '').strip()
+            today = int(hottest.get('currentPeriodStars') or 0)
+            if name and today > 0:
+                return f'GitHub 今日热榜｜{name} 一天涨了 {today:,} 星'
 
-        if name and today > 0:
-            return f'GitHub 今日热榜｜{name} 一天涨了 {today:,} 星'
-        return f'GitHub 今日热榜 Top {len(projects)} 个项目'
+        # 全部是降级数据：不编造日增数字
+        return f'GitHub 热门项目 {len(projects)} 个｜{date}'
     
     async def upload(self, video_path: str, projects: List[Dict]):
         """上传视频到B站"""

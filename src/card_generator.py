@@ -605,8 +605,14 @@ class CardGenerator:
         if project.get('forks'):
             chips.append((f"{int(project['forks']):,} forks", PALETTE['chip_bg'], PALETTE['text_body']))
         if project.get('currentPeriodStars'):
-            chips.append((f"+{int(project['currentPeriodStars']):,} today",
-                          PALETTE['chip_bg'], PALETTE['positive']))
+            # growth_estimated=True 表示这个数字是「总星数 ÷ 项目年龄」的日均值，
+            # 不是真实日增。必须如实标注，不能写成 "today" 误导观众。
+            if project.get('growth_estimated'):
+                chips.append((f"日均 +{int(project['currentPeriodStars']):,}*",
+                              PALETTE['chip_bg'], PALETTE['text_muted']))
+            else:
+                chips.append((f"+{int(project['currentPeriodStars']):,} today",
+                              PALETTE['chip_bg'], PALETTE['positive']))
         if project.get('license') and project['license'] != 'NOASSERTION':
             chips.append((project['license'], PALETTE['chip_bg'], PALETTE['text_body']))
 
