@@ -50,13 +50,19 @@ bash scripts/quickstart.sh
 bash scripts/bootstrap.sh
 ```
 
-`quickstart.sh` 会自动读取 `.env`（含 `GITHUB_TOKEN`）并处理 ffmpeg 路径，
-不需要手动拼 `PATH`。等价于 `pipeline.py --draft`。
+`quickstart.sh` 会自动读取 `.env` 并处理 ffmpeg 路径，不需要手动拼 `PATH`。
+等价于 `pipeline.py --draft`。
+
+GitHub Token **不在 `.env` 里** —— 由 pipeline 按优先级自动获取：
+`GITHUB_TOKEN` 环境变量 → `gh CLI`（含 `/opt/homebrew/bin`、`/usr/local/bin` 探测，
+因为定时任务的 PATH 通常只有 `/usr/bin:/bin`）→ 配置文件。
+`.env` 里只有 B站凭据。
 
 输出：
 - `output/trending.json` — 项目数据，含 `readme`（清洗后的正文，3000 字符内）、
   `topics`、`stars`、`forks`、`currentPeriodStars`、`preview_image`、`license`
-- `output/projects_summary.json` — 文案模板，`narrative` 三个字段是空的
+- `output/projects_summary.json` — 文案模板，`narrative` 的 `hook` / `body` /
+  `call_to_action` 为空，等你填写
 - `output/screenshots/*.png` — 项目预览图
 
 ### 第 2 步：撰写文案 ← 你的核心工作
@@ -99,10 +105,13 @@ bash scripts/bootstrap.sh
 ### 第 3 步：校验文案
 
 ```bash
-venv/bin/python -m src.narrative_validator output/projects_summary.json
+scripts/validate_narrative
 ```
 
 不通过就按提示改。这个校验会拦住套话和数字复述。
+
+> 用这个入口而不是 `python -m src.narrative_validator` —— 后者要求
+> 项目根在当前工作目录上，从别处调用会失败。
 
 ### 第 4 步：渲染
 
@@ -113,14 +122,18 @@ bash scripts/render.sh
 脚本会先跑一遍文案校验（不达标就不渲染），再配音 + 渲染。约 6 分钟。
 产出 `output/trending_video.mp4` 和 `output/cover.png`。
 
-### 第 5 步：上传（仅在用户明确要求时）
+### 第 5 步：上传
+
+**上传条件**：用户在本次对话中明确说了要上传，或已配置每日自动上传的定时任务。
 
 ```bash
-export BILIBILI_SESSDATA=xxx BILIBILI_BILI_JCT=xxx BILIBILI_BUVID3=xxx
 bash scripts/render.sh --upload
 ```
 
-**上传是外部发布动作。没有用户明确指示，不要执行。**
+B站凭据在项目 `.env` 里（脚本自动读取）。分区 122（科技区 → 知识 → 科学 → 其他）。
+
+> 本项目的定时任务已配置为「每天 7:00 全自动（含上传）」，用户已授权。
+> 若无定时任务或用户未授权，则不要执行这一步。
 
 上传完成后会打印 BV 号并写入 `output/last_upload.json`。
 
@@ -129,8 +142,9 @@ bash scripts/render.sh --upload
 1. **不要伪造数据。** 拿不到 Star 趋势图就显示占位，不要用推测的曲线冒充真实数据。
 2. **不要跳过采集健康度断言。** 采集结果为空或全 0 时必须报错降级，
    绝不能让它一路走到「产出 Top 0 视频」。
-3. **不要上传未经用户确认的内容。**
-4. **不要展开 config.json 或环境变量里的凭据原文**（SESSDATA / bili_jct / buvid3）。
+3. **不要在降级数据上写日增数字。** search API 的增速是「总星数 ÷ 项目年龄」
+   的日均值，不是真实日增。展示时标「日均 +N*」，标题里不要写「一天涨了 N 星」。
+4. **不要展开 config.json 或 .env 里的凭据原文**（SESSDATA / bili_jct / buvid3）。
 5. **字体不要退回 `load_default()`** —— 那是 6px 位图字体，中文会变方块。
    macOS 上 `PingFang.ttc` 已不存在，用 `STHeiti Medium.ttc` 的 face 1（简体）。
 
@@ -161,17 +175,22 @@ star-history.com 对超大仓库会返回错误页（实测 27 万星的 ECC 偶
 
 ## 每日自动运行
 
+**本项目已配置定时任务：每天 7:00 自动执行完整流程（含上传）。**
+
+流程：采集 → 写文案 → 校验 → 渲染 → 上传 B 站。上传已获用户授权。
+
+手动触发时：
+
 ```bash
 bash scripts/daily_run.sh
 ```
 
-采集 + 渲染一次跑完。两个设计取舍：
+`daily_run.sh` 本身**只到渲染为止，不上传** —— 定时任务里的上传是单独一步。
+设计取舍：
 
-**不自动上传。** 上传是外部发布动作，视频内容无人审阅时直接发出去有风险。
-需要发布时手动跑 `bash scripts/render.sh --upload`。
-
-**文案不达标会明确交接。** 规则式兜底文案过不了质量闸，此时脚本退出码为 2
-并提示「素材已就绪，等待补文案」，而不是含糊报「渲染失败」。
+**脚本不自动上传。** 上传是外部发布动作，视频内容无人审阅时直接发出去有风险。
+`daily_run.sh` 因此在文案不达标时会停下（退出码 2）并提示「素材已就绪，
+等待补文案」，而不是含糊报「渲染失败」。
 
 环境说明：脚本会主动补齐 PATH，GitHub Token 从 gh CLI 自动获取，
 不依赖环境变量。已在 `env -i` 最小环境下实测通过。
