@@ -1,21 +1,29 @@
+# 凭据：绝不入库
 config/config.json
+.env
+*.env
+!.env.example
+
+# 运行时产物
 output/
 screenshots/
 venv/
-node_modules/
-remotion/public/generated/
+bin/
 __pycache__/
 *.pyc
+.pytest_cache/
 .DS_Store
+
+# 媒体文件
 *.mp4
 *.mp3
 *.wav
 *.png
 !assets/
 !assets/**
+
+# Agent 运行时文件
 browser_profile/
-scripts/__pycache__/
-.remotion/
 .openclaw/
 AGENTS.md
 HEARTBEAT.md

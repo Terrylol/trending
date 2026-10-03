@@ -1,23 +1,36 @@
 """
 B站视频上传
-- Cookie认证
+- Cookie 认证
 - 自动填写标题、简介、标签
+
+安全约束：凭据优先从环境变量读取（BILIBILI_SESSDATA / BILIBILI_BILI_JCT /
+BILIBILI_BUVID3），配置文件只是 fallback。避免凭据落在被提交的文件里。
 """
+import os
 from typing import List, Dict
 from datetime import datetime
-import asyncio
+
 
 class BilibiliUploader:
     def __init__(self, config: Dict):
-        self.sessdata = config.get('sessdata')
-        self.bili_jct = config.get('bili_jct')
-        self.buvid3 = config.get('buvid3')
-        
-        if not all([self.sessdata, self.bili_jct, self.buvid3]):
-            raise ValueError("B站Cookie未完整配置，需要sessdata, bili_jct, buvid3")
-        
-        if self.sessdata.startswith('YOUR_'):
-            raise ValueError("B站Cookie未配置，请在config.json中填写真实值")
+        # 环境变量优先于配置文件
+        self.sessdata = os.environ.get('BILIBILI_SESSDATA') or config.get('sessdata')
+        self.bili_jct = os.environ.get('BILIBILI_BILI_JCT') or config.get('bili_jct')
+        self.buvid3 = os.environ.get('BILIBILI_BUVID3') or config.get('buvid3')
+
+        missing = [name for name, value in (
+            ('sessdata/BILIBILI_SESSDATA', self.sessdata),
+            ('bili_jct/BILIBILI_BILI_JCT', self.bili_jct),
+            ('buvid3/BILIBILI_BUVID3', self.buvid3),
+        ) if not value]
+        if missing:
+            raise ValueError(f'B站凭据未配置，缺失: {", ".join(missing)}')
+
+        if str(self.sessdata).startswith('YOUR_'):
+            raise ValueError(
+                'B站凭据仍是模板占位值。请设置环境变量 '
+                'BILIBILI_SESSDATA / BILIBILI_BILI_JCT / BILIBILI_BUVID3'
+            )
     
     async def upload(self, video_path: str, projects: List[Dict]):
         """上传视频到B站"""
@@ -122,27 +135,30 @@ class BilibiliUploader:
         return desc
 
 
-async def test_credential(credential_dict: Dict) -> bool:
-    """测试B站Cookie是否有效"""
+async def check_credential(credential_dict: Dict) -> bool:
+    """校验 B站 Cookie 是否有效。
+
+    函数名刻意不带 test_ 前缀：pytest 会自动收集 test_ 开头的函数，
+    而这里会发出真实网络请求，用 test_ 命名会导致跑测试时误触发。
+    """
     try:
         from bilibili_api import user, Credential
-        
+
         credential = Credential(
             sessdata=credential_dict['sessdata'],
             bili_jct=credential_dict['bili_jct'],
             buvid3=credential_dict['buvid3']
         )
-        
-        # 尝试获取用户信息
+
         my_info = await user.get_self_info(credential)
-        
+
         if my_info:
             print(f"  ✓ B站登录验证成功")
             print(f"    用户名: {my_info.get('name', 'Unknown')}")
             return True
-        
+
         return False
-        
+
     except Exception as e:
         print(f"  ✗ B站登录验证失败: {e}")
         return False

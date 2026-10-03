@@ -53,6 +53,68 @@
         "bytedance/UI-TARS-desktop",
         "CloakHQ/CloakBrowser"
       ]
+    },
+    "2026-10-03": {
+      "status": "video_succeeded",
+      "fetched": [
+        "DietrichGebert/ponytail",
+        "pbakaus/impeccable",
+        "affaan-m/ECC",
+        "Effect-TS/effect",
+        "JuliusBrussee/caveman",
+        "Panniantong/Agent-Reach",
+        "pingdotgg/t3code",
+        "thedotmack/claude-mem",
+        "cloudflare/cloudflare-os",
+        "addyosmani/agent-skills",
+        "obra/superpowers",
+        "mattpocock/skills",
+        "mksglu/context-mode",
+        "earendil-works/pi",
+        "getsentry/sentry"
+      ],
+      "selected": [
+        "DietrichGebert/ponytail",
+        "pbakaus/impeccable",
+        "affaan-m/ECC",
+        "Effect-TS/effect",
+        "JuliusBrussee/caveman"
+      ],
+      "skipped_duplicates": []
+    },
+    "2026-10-04": {
+      "status": "video_succeeded",
+      "fetched": [
+        "DietrichGebert/ponytail",
+        "pbakaus/impeccable",
+        "affaan-m/ECC",
+        "Effect-TS/effect",
+        "JuliusBrussee/caveman",
+        "Panniantong/Agent-Reach",
+        "pingdotgg/t3code",
+        "thedotmack/claude-mem",
+        "cloudflare/cloudflare-os",
+        "addyosmani/agent-skills",
+        "obra/superpowers",
+        "mattpocock/skills",
+        "mksglu/context-mode",
+        "earendil-works/pi",
+        "getsentry/sentry"
+      ],
+      "selected": [
+        "Panniantong/Agent-Reach",
+        "pingdotgg/t3code",
+        "thedotmack/claude-mem",
+        "cloudflare/cloudflare-os",
+        "addyosmani/agent-skills"
+      ],
+      "skipped_duplicates": [
+        "DietrichGebert/ponytail",
+        "pbakaus/impeccable",
+        "affaan-m/ECC",
+        "Effect-TS/effect",
+        "JuliusBrussee/caveman"
+      ]
     }
   }
 }

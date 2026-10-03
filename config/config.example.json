@@ -1,16 +1,25 @@
 {
+  "github": {
+    "personal_access_token": ""
+  },
   "tts": {
     "engine": "edge",
-    "apikey": ""
-  },
-  "bilibili": {
-    "sessdata": "YOUR_SESSDATA",
-    "bili_jct": "YOUR_BILI_JCT",
-    "buvid3": "YOUR_BUVID3"
+    "apikey": "",
+    "voice": "zh-CN-XiaoxiaoNeural",
+    "speed": 1.3
   },
   "video": {
-    "limit": 5,
+    "limit": 15,
+    "target_count": 5,
     "resolution": "1920x1080",
-    "fps": 24
+    "fps": 24,
+    "renderer": "moviepy",
+    "animate": true,
+    "output_dir": "output"
+  },
+  "star_history": {
+    "enabled": true,
+    "timeout": 20,
+    "concurrency": 2
   }
 }

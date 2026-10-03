@@ -137,20 +137,28 @@ def select_projects(projects: List[Dict], dedupe_ids: Set[str], target_count: in
         if rid:
             fetched_ids.append(rid)
         if rid and rid in dedupe_ids:
+            # 记为候选跳过（暂不写入 skipped_ids，等确认不被补回）
             skipped_projects.append((project, rid))
-            skipped_ids.append(rid)
             continue
         if len(selected) < target_count:
             selected.append(project)
             if rid:
                 selected_ids.append(rid)
 
+    # 实际被跳过的 = 候选跳过 - 被补回选中的
+    backfilled_ids = set()
     if allow_repeat and len(selected) < target_count:
         for project, rid in skipped_projects:
             if len(selected) >= target_count:
                 break
             selected.append(project)
             selected_ids.append(rid)
+            backfilled_ids.add(rid)
+
+    # 重构点：被补回选中的项目必须从 skipped_duplicates 中排除，
+    # 否则同一 repo 会同时出现在 selected 和 skipped_duplicates 里，
+    # 写出自相矛盾的 history。
+    skipped_ids = [rid for _, rid in skipped_projects if rid not in backfilled_ids]
 
     return selected, fetched_ids, selected_ids, skipped_ids
 
@@ -184,6 +192,17 @@ def run_select(args) -> int:
     print(f"✓ 去重集合: {len(dedupe_ids)}")
     print(f"✓ 选中项目: {len(selected)}")
     print(f"✓ 跳过重复: {len(skipped_ids)}")
+
+    # 重构点：选不满时必须显式告警且返回非零退出码。
+    # 旧实现静默返回更少项目（exit 0），下游 projects+2 校验恰好通过，
+    # 最终产出一条项目数不足的视频却没有任何提示。
+    if len(selected) < args.target_count:
+        print(f"\n⚠ 仅选出 {len(selected)}/{args.target_count} 个项目"
+              f"（{'允许重复' if args.allow_repeat_if_insufficient else '未允许重复'}）")
+        if not args.allow_repeat_if_insufficient and len(selected) == 0:
+            print("✗ 无可选项目，请检查候选池或调大 --cooldown-days")
+            return 1
+
     if args.dry_run:
         print("dry-run: 未写入输出和历史文件")
     return 0
@@ -194,8 +213,25 @@ def update_status(args) -> int:
     history_path = Path(args.history)
     history = load_history(history_path)
     runs = history.setdefault("runs", {})
-    run = runs.setdefault(today, {"fetched": [], "selected": [], "skipped_duplicates": []})
-    run["status"] = args.status
+
+    run = runs.get(today)
+    if run is None:
+        # 重构点：不能凭空造一个 selected 为空的记录再标记为成功——
+        # 那会让去重永久失效且无人察觉。明确报错要求先跑 select。
+        if args.status == "selected":
+            runs[today] = {
+                "status": "selected",
+                "fetched": [],
+                "selected": [],
+                "skipped_duplicates": [],
+            }
+        else:
+            print(f"✗ {today} 没有 select 记录，无法标记 status={args.status}")
+            print(f"  请先执行: select 子命令，再更新状态")
+            return 1
+    else:
+        run["status"] = args.status
+
     write_json_file(history_path, history)
     print(f"✓ 已更新 {today} status={args.status}")
     return 0
