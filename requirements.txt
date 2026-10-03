@@ -1,10 +1,24 @@
+# 核心渲染依赖
 moviepy>=2.0
 Pillow>=10.0
 requests>=2.31
 beautifulsoup4>=4.12
 lxml>=5.0
+
+# TTS（edge-tts 免费无需 key）
 edge-tts>=6.1
+
+# ffmpeg 二进制（brew 装不上时的兜底，见 README）
 imageio-ffmpeg>=0.4.9
-cairosvg>=2.7
+
+# Star 趋势图的 SVG→PNG（macOS 上常缺，缺失时回退为自绘曲线）
+cairosvg>=2.7; platform_system != "Darwin"
+
+# B站上传（可选，只有 --upload 需要）
+# 注意：qrcode-terminal 在部分沙箱环境下装不上，若安装失败可手动下载解包到 site-packages
 bilibili-api-python>=2.0
+qrcode; qrcode-terminal; pycryptodomex; apscheduler; pyyaml; pyjwt
+aiohttp; aiofiles; numpy; bcrypt; brotli; requests-toolbelt; soupsieve
+
+# 测试
 pytest>=7.4

@@ -415,20 +415,21 @@ def step_upload(projects: List[Dict]) -> None:
         print(f'✗ 仅 {len(projects)} 个项目，拒绝上传（内容可能不完整）')
         raise SystemExit(1)
 
-    config = load_config()
-    bili = config.get('bilibili', {})
-    missing = [k for k in ('sessdata', 'bili_jct', 'buvid3') if not bili.get(k)]
-    if missing:
-        env_ok = all(os.environ.get(f'BILIBILI_{k.upper()}') for k in missing)
-        if not env_ok:
-            print(f'✗ B站凭据缺失字段: {", ".join(missing)}')
-            print('  请在 config/config.json 填写，或设置环境变量 BILIBILI_SESSDATA 等')
-            raise SystemExit(1)
+    if not (OUTPUT_DIR / 'cover.png').exists():
+        print('✗ 封面不存在，拒绝上传（无封面不会有推荐量）')
+        raise SystemExit(1)
 
+    # 凭据校验交给 BilibiliUploader（它读环境变量 + 配置，且只在一处判断）
+    config = load_config()
     from bilibili_uploader import BilibiliUploader
     import asyncio
 
-    uploader = BilibiliUploader(bili)
+    try:
+        uploader = BilibiliUploader(config.get('bilibili', {}))
+    except ValueError as e:
+        print(f'✗ {e}')
+        raise SystemExit(1)
+
     result = asyncio.run(uploader.upload(str(video_path), projects))
     if result:
         print(f'  ✓ 上传成功: {result.get("title")}')
@@ -449,9 +450,23 @@ def update_history(status: str) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='GitHub Trending 视频生成流水线')
+    parser = argparse.ArgumentParser(
+        description='GitHub Trending 视频生成流水线',
+        epilog='''
+典型用法：
+  %(prog)s --draft          只采集 + 生成文案模板，不渲染（攒素材）
+  （编辑 output/projects_summary.json 的 narrative 后）
+  %(prog)s                 渲染出视频
+  %(prog)s --upload        渲染后上传 B 站
+
+文案质量说明：auto_narrative 是规则式兜底，上限有限。
+想要"这项目是干什么的"这种内容，编辑 projects_summary.json 的 narrative 字段，
+或让 Agent 读 README 后填写 —— 采集到的 readme/topics 字段已经足够。
+        ''')
     parser.add_argument('--upload', action='store_true',
                         help='生成后上传到 B 站（外部发布动作，默认不上传）')
+    parser.add_argument('--draft', action='store_true',
+                        help='只采集 + 生成文案模板，不配音不渲染')
     parser.add_argument('--limit', type=int, default=None, help='采集候选数量')
     parser.add_argument('--target', type=int, default=None, help='最终视频内项目数')
     parser.add_argument('--skip-dedupe', action='store_true', help='跳过历史去重')
@@ -470,8 +485,13 @@ def main() -> int:
     print('=' * 64)
     print(f'  分辨率: {video_config.get("resolution", "1920x1080")} @ {video_config.get("fps", 24)}fps')
     print(f'  TTS: {config.get("tts", {}).get("engine", "edge")}')
+    print(f'  模式: {"草稿（不渲染）" if args.draft else "完整渲染"}')
     print(f'  上传: {"是" if args.upload else "否"}')
     print('=' * 64)
+
+    if args.draft and args.upload:
+        print('✗ --draft 与 --upload 不能同时使用（草稿不产出视频）')
+        return 1
 
     try:
         step_fetch(config, limit)
@@ -486,6 +506,18 @@ def main() -> int:
             projects = step_dedupe(limit, target)
 
         projects = step_summarize(projects, target)
+
+        if args.draft:
+            print('\n' + '=' * 64)
+            print('✓ 草稿完成（未渲染）')
+            print(f'  文案: output/projects_summary.json')
+            print(f'  素材: output/trending.json（含 readme / topics / preview_image）')
+            print('=' * 64)
+            print('\n下一步：编辑 projects_summary.json 的 narrative 字段后运行')
+            print(f'  {sys.executable} pipeline.py')
+            # 草稿模式不改历史状态，避免把"未产出视频"记成成功
+            return 0
+
         video_path = step_render(config, projects)
     except SystemExit:
         raise

@@ -106,10 +106,18 @@ star-history 的 y 越小 = 星越多（顶部=最大值）。
 
 ## 待办 P0（需用户操作）
 - [ ] **用户需在 B站登出设备并重置会话** —— 旧凭据自首个提交 6467e5c 起就在历史里，
-      HEAD 完好，删文件不能清除历史
-- [ ] **改写 git 历史清除凭据** —— 需 force push，所有已有 clone 要重新克隆。
-      等用户确认时机后执行
-- [x] 代码侧防护已完成：凭据走环境变量 + pre-commit 钩子 + .env.example
+      共 20 个提交受影响，HEAD 完好
+- [ ] **改写 git 历史** —— 已备好 `scripts/purge_bilibili_credentials.sh`
+      （git filter-repo + 镜像备份 + 交互确认 + 校验）。
+      需 force push，等用户确认时机后执行。
+      注意：只删文件不够，GitHub 可能缓存旧对象，需通知所有 clone 者重新克隆。
+- [x] 代码侧防护：凭据走环境变量 + pre-commit 钩子 + .env.example
+- [x] B站封面：`generate_cover()` 生成 1280x800，缺失时上传器显式报错
+      （此前 cover='' 静默降级，视频无推荐量但调用方以为设置成功）
+
+## Git 状态
+- 重构已提交：`851f682`（重构主体）+ `6c297f6`（封面 + 凭据清除脚本）
+- 本地领先 origin/master 2 个提交，**尚未 push**
 
 ## 字体坑（macOS，已在代码中修复）
 - `/System/Library/Fonts/PingFang.ttc` 在现代 macOS **不存在**

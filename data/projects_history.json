@@ -83,7 +83,7 @@
       "skipped_duplicates": []
     },
     "2026-10-04": {
-      "status": "video_succeeded",
+      "status": "selected",
       "fetched": [
         "DietrichGebert/ponytail",
         "pbakaus/impeccable",

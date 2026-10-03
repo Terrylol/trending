@@ -21,5 +21,13 @@
     "enabled": true,
     "timeout": 20,
     "concurrency": 2
+  },
+  "bilibili": {
+    "tid": 122,
+    "credential_source": "env",
+    "_说明": "凭据不要填在这里，用环境变量 BILIBILI_SESSDATA / BILIBILI_BILI_JCT / BILIBILI_BUVID3",
+    "sessdata": "",
+    "bili_jct": "",
+    "buvid3": ""
   }
 }

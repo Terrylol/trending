@@ -45,11 +45,12 @@ venv/bin/python pipeline.py
 ## 命令
 
 ```bash
-venv/bin/python pipeline.py                    # 生成视频（不上传）
-venv/bin/python pipeline.py --upload           # 生成后上传 B 站
-venv/bin/python pipeline.py --limit 20         # 加大候选池
-venv/bin/python pipeline.py --target 3         # 只要 3 个项目
-venv/bin/python pipeline.py --skip-dedupe      # 跳过去重
+venv/bin/python pipeline.py --draft          # 只采集 + 生成文案模板，不渲染
+venv/bin/python pipeline.py                  # 渲染出视频（不上传）
+venv/bin/python pipeline.py --upload         # 渲染后上传 B 站
+venv/bin/python pipeline.py --limit 20       # 加大候选池
+venv/bin/python pipeline.py --target 3       # 只要 3 个项目
+venv/bin/python pipeline.py --skip-dedupe    # 跳过去重
 
 # 单步调试
 venv/bin/python src/trending_fetcher.py --limit 15
@@ -58,6 +59,19 @@ venv/bin/python src/history_deduper.py status --status video_succeeded
 # 测试
 venv/bin/python -m pytest tests/ -q
 ```
+
+## 典型工作流
+
+```
+1. pipeline.py --draft      采集 + 生成文案模板
+2. （编辑 output/projects_summary.json 的 narrative，或让 Agent 写）
+3. pipeline.py              渲染出 mp4
+4. pipeline.py --upload     重新渲染并上传（跳过第 3 步）
+```
+
+`--draft` 不会配音也不渲染，适合"今天先看看有哪些项目"。
+采集结果已包含 `readme` / `topics` / `preview_image` / `license`，
+写文案需要的信息都在里面。
 
 ## 取数架构（三层降级）
 
@@ -164,10 +178,30 @@ cp scripts/guard_secrets.py .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 
 ## B站上传
 
-上传是**外部发布动作，默认关闭**。需显式加 `--upload`，且上传前会校验
-视频存在、项目数 ≥3、凭据完整。
+上传是**外部发布动作，默认关闭**。需显式加 `--upload`。
 
-标题格式：`GitHub 今日热榜 Top N (YYYYMMDD)`，分区为科技区。
+上传前会校验：视频存在、项目数 ≥3、封面存在、凭据完整。
+
+标题用「今日涨星最多」的项目做钩子，而不是纯日期：
+
+```
+GitHub 今日热榜｜Agent-Reach 一天涨了 1,683 星
+```
+
+凭据走环境变量：
+
+```bash
+export BILIBILI_SESSDATA=xxx
+export BILIBILI_BILI_JCT=xxx
+export BILIBILI_BUVID3=xxx
+```
+
+分区默认 122（科技区 → 知识 → 科学 → 其他），可在 `config.json` 的
+`bilibili.tid` 修改。封面由 `pipeline.step_render` 自动生成到
+`output/cover.png`（1280×800）。
+
+> ⚠️ `qrcode-terminal` 在部分沙箱环境会安装失败（pip 报 mkdir EEXIST）。
+> 失败时从 PyPI 下载 tar.gz 解包到 `site-packages/` 即可。
 
 ## 项目结构
 
@@ -179,14 +213,17 @@ cp scripts/guard_secrets.py .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 │   └── config.example.json
 ├── data/projects_history.json  # 去重历史
 ├── assets/github_logo.png
-├── scripts/guard_secrets.py   # pre-commit 凭据拦截
-├── tests/test_core.py         # 单元测试
+├── docs/PLAN.md             # 重构方案（历史文档）
+├── scripts/
+│   ├── guard_secrets.py     # pre-commit 凭据拦截
+│   └── purge_bilibili_credentials.sh  # 清除 git 历史中的凭据
+├── tests/test_core.py       # 单元测试
 └── src/
     ├── trending_fetcher.py    # 取数（三层降级）
     ├── history_deduper.py     # 去重
-    ├── card_generator.py      # 卡片排版
+    ├── card_generator.py      # 卡片排版 + 封面 + Star 趋势图
     ├── tts_generator.py       # 语音调度
-    ├── video_composer.py      # 合成 + 校验
+    ├── video_composer.py      # 合成 + 动效 + 校验
     ├── bilibili_uploader.py   # B站上传
     └── tts/                   # 多引擎 TTS
 ```

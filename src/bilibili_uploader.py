@@ -17,6 +17,8 @@ class BilibiliUploader:
         self.sessdata = os.environ.get('BILIBILI_SESSDATA') or config.get('sessdata')
         self.bili_jct = os.environ.get('BILIBILI_BILI_JCT') or config.get('bili_jct')
         self.buvid3 = os.environ.get('BILIBILI_BUVID3') or config.get('buvid3')
+        # 分区：122 = 科技区 → 知识 → 科学 → 其他
+        self.tid = int(config.get('tid', 122))
 
         missing = [name for name, value in (
             ('sessdata/BILIBILI_SESSDATA', self.sessdata),
@@ -31,33 +33,53 @@ class BilibiliUploader:
                 'B站凭据仍是模板占位值。请设置环境变量 '
                 'BILIBILI_SESSDATA / BILIBILI_BILI_JCT / BILIBILI_BUVID3'
             )
+
+    def _build_title(self, projects: List[Dict]) -> str:
+        """生成标题。
+
+        原实现是 `GitHub 今日热榜 Top 5 (20261004)` —— 只有日期没有钩子。
+        这里取「今日涨星最多」的项目名做钩子，因为它是观众最可能点开的那个。
+        """
+        date = datetime.now().strftime('%m月%d日')
+        if not projects:
+            return f'GitHub 今日热榜 ({date})'
+
+        hottest = max(projects,
+                      key=lambda p: int(p.get('currentPeriodStars') or 0))
+        name = str(hottest.get('name') or '').strip()
+        today = int(hottest.get('currentPeriodStars') or 0)
+
+        if name and today > 0:
+            return f'GitHub 今日热榜｜{name} 一天涨了 {today:,} 星'
+        return f'GitHub 今日热榜 Top {len(projects)} 个项目'
     
     async def upload(self, video_path: str, projects: List[Dict]):
         """上传视频到B站"""
         print(f"  上传视频到B站...")
-        
+
         # 导入bilibili_api
         try:
             from bilibili_api import video_uploader, Credential
-        except ImportError:
-            print(f"  ✗ 未安装bilibili-api-python")
-            print(f"    请运行: pip install bilibili-api-python")
-            return None
-        
+        except ImportError as e:
+            raise ImportError(
+                '未安装 bilibili-api-python。\n'
+                '  安装：venv/bin/pip install bilibili-api-python\n'
+                f'  原始错误: {e}'
+            ) from e
+
         # 创建凭证
         credential = Credential(
             sessdata=self.sessdata,
             bili_jct=self.bili_jct,
             buvid3=self.buvid3
         )
-        
-        # 生成标题
-        date = datetime.now().strftime('%Y%m%d')
-        title = f"GitHub 今日热榜 Top {len(projects)} ({date})"
-        
+
+        # 标题：用「涨星最多」的项目名做钩子，比纯日期的点击率高
+        title = self._build_title(projects)
+
         # 生成简介
         desc = self._generate_description(projects)
-        
+
         # 生成标签
         tags = ["GitHub", "开源项目", "编程", "技术分享", "AI"]
 
@@ -81,7 +103,7 @@ class BilibiliUploader:
         try:
             # 创建元数据
             meta = video_uploader.VideoMeta(
-                tid=122,  # 科技区：知识→科学→其他
+                tid=self.tid,
                 title=title[:80],  # B站标题限制80字
                 desc=desc[:2000],   # B站简介限制2000字
                 cover=cover_path,
