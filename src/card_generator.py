@@ -779,3 +779,84 @@ class CardGenerator:
 
         img.save(output_path)
         return output_path
+
+    def generate_cover(self, date: str, output_path: str,
+                       projects: Optional[List[Dict]] = None) -> str:
+        """生成 B站封面。
+
+        B站封面是视频曝光的关键，缺失会直接导致没有推荐量。
+        比例用 16:10（B站推荐位常见比例），内容突出标题和日期。
+        """
+        width = self._u(1280)
+        height = self._u(800)
+        accent = PALETTE['accent']
+
+        img = Image.new('RGB', (width, height), PALETTE['bg_top'])
+        draw = ImageDraw.Draw(img)
+        for y in range(height):
+            ratio = y / max(height - 1, 1)
+            color = tuple(
+                int(PALETTE['bg_top'][i] + (PALETTE['bg_bottom'][i] - PALETTE['bg_top'][i]) * ratio)
+                for i in range(3)
+            )
+            draw.line([(0, y), (width, y)], fill=color)
+
+        # 光晕
+        glow = Image.new('RGB', (width, height), (0, 0, 0))
+        mask = Image.new('L', (width, height), 0)
+        ImageDraw.Draw(mask).ellipse(
+            [int(width * 0.55), int(-height * 0.2),
+             int(width * 1.25), int(height * 0.85)], fill=44)
+        mask = mask.filter(ImageFilter.GaussianBlur(int(width * 0.09)))
+        glow.paste(accent, (0, 0), mask)
+        img = Image.blend(img, Image.blend(img, glow, 0.5), 0.5)
+        draw = ImageDraw.Draw(img)
+
+        margin = self._u(90)
+        # 顶部条
+        draw.rectangle([0, 0, self._u(14), height], fill=accent)
+
+        y = self._u(170)
+        draw.text((margin, y), 'GitHub', font=self._f('hero'),
+                  fill=PALETTE['text_on_dark'])
+        y += self._u(150)
+
+        # 「今日热榜」用强调色，制造层次
+        cjk = self._cjk_font()
+        title_font = self._scaled_font(cjk[0], cjk[1], self._u(130))
+        draw.text((margin, y), '今日热榜', font=title_font, fill=accent)
+        y += self._u(160)
+
+        draw.text((margin, y), date, font=self._f('date'),
+                  fill=PALETTE['text_on_dark_muted'])
+
+        # 底部列出项目名，让人一眼知道本期内容
+        if projects:
+            names = [p.get('name', '') for p in projects[:5] if p.get('name')]
+            y = height - self._u(150)
+            x = margin
+            chip_font = self._f('badge')
+            for name in names:
+                text_w = self._text_width(draw, name, chip_font)
+                chip_w = text_w + self._u(34)
+                if x + chip_w > width - margin:
+                    break
+                self._rounded_rect(draw, [x, y, x + chip_w, y + self._u(52)],
+                                   self._u(10), (30, 41, 59))
+                draw.text((x + self._u(17), y + self._u(13)), name,
+                          font=chip_font, fill=PALETTE['text_on_dark'])
+                x += chip_w + self._u(14)
+
+        img.save(output_path)
+        return output_path
+
+    def _cjk_font(self):
+        """返回当前使用的中文字体路径和 face index。"""
+        font = self._fonts['body']
+        return font.path, (font.index or 0)
+
+    def _scaled_font(self, path: str, index: int, size: int) -> ImageFont.FreeTypeFont:
+        try:
+            return ImageFont.truetype(path, size, index=index)
+        except (OSError, ValueError):
+            return self._fonts['body']

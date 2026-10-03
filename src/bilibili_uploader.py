@@ -60,23 +60,31 @@ class BilibiliUploader:
         
         # 生成标签
         tags = ["GitHub", "开源项目", "编程", "技术分享", "AI"]
-        
-        # 使用视频截图作为封面
+
+        # 封面：B站推荐位依赖封面，缺失会导致没有曝光。
+        # 这里显式报错而不是传空字符串 —— 静默传空会让人以为设置成功了。
         import os
         from pathlib import Path
         output_dir = Path('output')
-        cover_path = str(output_dir / 'cover.png') if (output_dir / 'cover.png').exists() else None
-        
+        cover_path = output_dir / 'cover.png'
+        if not cover_path.exists():
+            raise FileNotFoundError(
+                f'封面文件不存在: {cover_path}\n'
+                f'  请先完整跑一次 pipeline 生成封面（pipeline.step_render 会自动生成）'
+            )
+        cover_path = str(cover_path)
+
         print(f"    标题: {title}")
         print(f"    标签: {','.join(tags)}")
-        
+        print(f"    封面: {cover_path}")
+
         try:
             # 创建元数据
             meta = video_uploader.VideoMeta(
                 tid=122,  # 科技区：知识→科学→其他
                 title=title[:80],  # B站标题限制80字
                 desc=desc[:2000],   # B站简介限制2000字
-                cover=cover_path or '',  # 使用幻灯片作为封面
+                cover=cover_path,
                 tags=tags
             )
             

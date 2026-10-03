@@ -380,6 +380,11 @@ def step_render(config: Dict, projects: List[Dict]) -> str:
     slides.append(str(ending_slide))
     print(f'  ✓ 卡片生成完成，共 {len(slides)} 张')
 
+    # B站封面：缺失会直接影响推荐量，所以单独生成
+    cover_path = OUTPUT_DIR / 'cover.png'
+    cards.generate_cover(date_display, str(cover_path), projects=projects)
+    print(f'  ✓ 封面: {cover_path.name}')
+
     # 合成
     composer = VideoComposer({
         'fps': int(video_config.get('fps', 24)),
