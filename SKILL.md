@@ -148,3 +148,25 @@ star-history.com 对超大仓库会返回错误页（实测 27 万星的 ECC 偶
 **Q：为什么改了风格但视频没变**
 文案是 TTS 输入。改完 `projects_summary.json` 需要重跑 pipeline
 才会重新配音渲染。只改 JSON 不会生效。
+
+**Q：定时任务里跑会不会缺 GitHub Token**
+不会。`pipeline` 会按优先级取：`GITHUB_TOKEN` 环境变量 → `gh CLI`
+（含 `/opt/homebrew/bin`、`/usr/local/bin` 探测，因为定时任务的 PATH
+通常只有 `/usr/bin:/bin`）→ 配置文件。
+
+## 每日自动运行
+
+```bash
+bash scripts/daily_run.sh
+```
+
+采集 + 渲染一次跑完。两个设计取舍：
+
+**不自动上传。** 上传是外部发布动作，视频内容无人审阅时直接发出去有风险。
+需要发布时手动跑 `bash scripts/render.sh --upload`。
+
+**文案不达标会明确交接。** 规则式兜底文案过不了质量闸，此时脚本退出码为 2
+并提示「素材已就绪，等待补文案」，而不是含糊报「渲染失败」。
+
+环境说明：脚本会主动补齐 PATH，GitHub Token 从 gh CLI 自动获取，
+不依赖环境变量。已在 `env -i` 最小环境下实测通过。

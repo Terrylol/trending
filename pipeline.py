@@ -65,6 +65,32 @@ def setup_logging() -> Path:
     return log_path
 
 
+def _resolve_github_token() -> Optional[str]:
+    """按优先级取 GitHub Token。
+
+    优先级：环境变量 GITHUB_TOKEN → gh CLI 已登录的凭据 → 配置文件。
+    定时任务在新 shell 里跑，没有环境变量，所以必须能自己从 gh CLI 拿，
+    否则匿名配额 60/hr 会很快触限（15 个项目就要 45 次调用）。
+    """
+    token = os.environ.get('GITHUB_TOKEN')
+    if token:
+        return token
+
+    # gh CLI 通常已在系统 PATH，但定时任务/非交互 shell 的 PATH 可能很精简，
+    # 因此额外探测几个常见安装位置
+    gh_candidates = ['gh', '/opt/homebrew/bin/gh', '/usr/local/bin/gh']
+    for gh in gh_candidates:
+        try:
+            result = subprocess.run([gh, 'auth', 'token'],
+                                    capture_output=True, text=True, timeout=15)
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            continue
+
+    return None
+
+
 def load_config() -> Dict:
     """加载配置。缺失时显式报错——静默降级是新用户最难诊断的问题。"""
     if not CONFIG_PATH.exists():
@@ -78,11 +104,15 @@ def load_config() -> Dict:
         print(f'✗ config/config.json 格式错误: {e}')
         raise SystemExit(1)
 
-    # GitHub Token 支持环境变量覆盖（推荐，避免明文写在配置文件里）
-    env_token = os.environ.get('GITHUB_TOKEN')
-    if env_token:
-        config.setdefault('github', {})['personal_access_token'] = env_token
-        print('  · 使用环境变量 GITHUB_TOKEN')
+    # GitHub Token 支持环境变量和 gh CLI 覆盖（推荐，避免明文写在配置文件里）
+    token = _resolve_github_token()
+    if token:
+        config.setdefault('github', {})['personal_access_token'] = token
+        source = '环境变量' if os.environ.get('GITHUB_TOKEN') else 'gh CLI'
+        print(f'  · GitHub Token 来源: {source}')
+    else:
+        print('  ⚠ 未找到 GitHub Token，API 配额 60/hr（15 个项目可能触限）')
+        print('    解决：gh auth login，或在 .env 里设 GITHUB_TOKEN')
 
     return config
 

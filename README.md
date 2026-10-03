@@ -240,7 +240,26 @@ export BILIBILI_BUVID3=xxx
 > ⚠️ `qrcode-terminal` 在部分沙箱环境会安装失败（pip 报 mkdir EEXIST）。
 > 失败时从 PyPI 下载 tar.gz 解包到 `site-packages/` 即可。
 
-## 目录职责
+## 每日自动运行
+
+```bash
+bash scripts/daily_run.sh
+```
+
+采集 + 渲染一次跑完。日志在 `output/logs/daily_*.log`。
+
+脚本会主动补齐 `PATH`（定时任务环境通常只有 `/usr/bin:/bin`），
+GitHub Token 从 `gh CLI` 自动获取，**不依赖环境变量**——已在 `env -i`
+最小环境下实测通过。
+
+**两个设计取舍**：
+
+- **不自动上传。** 上传是外部发布动作，视频内容无人审阅时直接发出去有风险。
+  需要发布时手动跑 `bash scripts/render.sh --upload`。
+- **文案不达标会明确交接。** 规则式兜底文案过不了质量闸，此时退出码为 2
+  并提示「素材已就绪，等待补文案」，而不是含糊报「渲染失败」。
+
+
 
 ```
 .
@@ -252,6 +271,9 @@ export BILIBILI_BUVID3=xxx
 │   ├── bootstrap.sh         环境准备：venv + 依赖 + 配置 + ffmpeg
 │   ├── quickstart.sh        采集 + 生成文案模板
 │   ├── render.sh            校验文案 + 渲染（可选 --upload）
+│   ├── daily_run.sh         每日自动运行（采集 + 渲染，不上传）
+│   ├── install_skill.sh     注册为 WorkBuddy Skill（软链）
+│   ├── install_upload_deps.sh  B站上传依赖（可选）
 │   ├── guard_secrets.py     pre-commit 凭据拦截
 │   └── purge_bilibili_credentials.sh   清除 git 历史中的凭据
 │
