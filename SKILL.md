@@ -21,11 +21,17 @@ license: MIT
 
 ```bash
 cd /Users/chengshang/WorkBuddy/trending
-export GITHUB_TOKEN=xxx        # 可选，但强烈建议：配额从 60/hr 变 5000/hr
-PATH="$PWD/bin:$PATH" venv/bin/python pipeline.py --draft
+bash scripts/quickstart.sh
 ```
 
-`--draft` 只采集 + 生成文案模板，不配音不渲染。
+首次使用需先跑一次环境准备：
+
+```bash
+bash scripts/bootstrap.sh
+```
+
+`quickstart.sh` 会自动读取 `.env`（含 `GITHUB_TOKEN`）并处理 ffmpeg 路径，
+不需要手动拼 `PATH`。等价于 `pipeline.py --draft`。
 
 输出：
 - `output/trending.json` — 项目数据，含 `readme`（清洗后的正文，3000 字符内）、
@@ -76,20 +82,22 @@ venv/bin/python -m src.narrative_validator output/projects_summary.json
 ### 第 4 步：渲染
 
 ```bash
-PATH="$PWD/bin:$PATH" venv/bin/python pipeline.py
+bash scripts/render.sh
 ```
 
-约 6 分钟（有动效，逐帧缩放较慢）。产出 `output/trending_video.mp4`
-和 `output/cover.png`。
+脚本会先跑一遍文案校验（不达标就不渲染），再配音 + 渲染。约 6 分钟。
+产出 `output/trending_video.mp4` 和 `output/cover.png`。
 
 ### 第 5 步：上传（仅在用户明确要求时）
 
 ```bash
 export BILIBILI_SESSDATA=xxx BILIBILI_BILI_JCT=xxx BILIBILI_BUVID3=xxx
-venv/bin/python pipeline.py --upload
+bash scripts/render.sh --upload
 ```
 
 **上传是外部发布动作。没有用户明确指示，不要执行。**
+
+上传完成后会打印 BV 号并写入 `output/last_upload.json`。
 
 ## 硬性约束
 

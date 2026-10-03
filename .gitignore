@@ -1,10 +1,10 @@
-# 凭据：绝不入库
+# ---------- 凭据（绝不入库） ----------
 config/config.json
 .env
 *.env
 !.env.example
 
-# 运行时产物
+# ---------- 运行时产物 ----------
 output/
 screenshots/
 venv/
@@ -14,7 +14,20 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-# 媒体文件
+# ---------- Agent 运行时数据 ----------
+# 这些是 Agent 在本机生成的对话记忆，与项目代码无关
+.workbuddy/
+.openclaw/
+.claude/
+browser_profile/
+AGENTS.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+
+# ---------- 媒体文件 ----------
 *.mp4
 *.mp3
 *.wav
@@ -22,12 +35,7 @@ __pycache__/
 !assets/
 !assets/**
 
-# Agent 运行时文件
-browser_profile/
-.openclaw/
-AGENTS.md
-HEARTBEAT.md
-IDENTITY.md
-SOUL.md
-TOOLS.md
-USER.md
+# ---------- 编辑器 ----------
+.idea/
+.vscode/
+*.swp

@@ -529,7 +529,7 @@ def main() -> int:
             print(f'  素材: output/trending.json（含 readme / topics / preview_image）')
             print('=' * 64)
             print('\n下一步：编辑 projects_summary.json 的 narrative 字段后运行')
-            print(f'  {sys.executable} pipeline.py')
+            print('  bash scripts/render.sh')
             # 草稿模式不改历史状态，避免把"未产出视频"记成成功
             return 0
 

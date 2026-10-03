@@ -9,18 +9,23 @@ Python + PIL + MoviePy，无 Node/Chromium 依赖。单命令跑完整流程。
 ## 快速开始
 
 ```bash
-# 1. 安装依赖
-python3 -m venv venv
-venv/bin/pip install -r requirements.txt
-
-# 2. 配置（推荐用环境变量，不落盘到被提交的文件）
-cp .env.example .env && 编辑填写
-cp config/config.example.json config/config.json
-
-# 3. 跑
-export GITHUB_TOKEN=xxx
-venv/bin/python pipeline.py
+git clone https://github.com/Terrylol/trending.git && cd trending
+bash scripts/bootstrap.sh        # 环境准备：venv + 依赖 + 配置 + ffmpeg
 ```
+
+编辑 `.env` 填入 `GITHUB_TOKEN`，然后：
+
+```bash
+bash scripts/quickstart.sh       # 采集 + 生成文案模板
+#   → 编辑 output/projects_summary.json 的 narrative
+bash scripts/render.sh           # 配音 + 渲染（约 6 分钟）
+bash scripts/render.sh --upload  # 渲染并上传 B 站
+```
+
+或直接让 Agent 执行：说「做今天的视频」，它会读 [`SKILL.md`](SKILL.md) 走完流程。
+
+> 脚本会自动读取 `.env` 并处理 ffmpeg 路径，无需手动拼 `PATH`。
+> 手动调底层命令时才需要：`venv/bin/python pipeline.py --draft`
 
 ## 文案
 
@@ -63,33 +68,46 @@ venv/bin/python -m src.narrative_validator output/projects_summary.json
 
 ## 命令
 
+**推荐用脚本**（自动处理 ffmpeg 路径、读取 `.env`）：
+
 ```bash
-venv/bin/python pipeline.py --draft          # 只采集 + 生成文案模板，不渲染
-venv/bin/python pipeline.py                  # 渲染出视频（不上传）
-venv/bin/python pipeline.py --upload         # 渲染后上传 B 站
-venv/bin/python pipeline.py --limit 20       # 加大候选池
-venv/bin/python pipeline.py --target 3       # 只要 3 个项目
-venv/bin/python pipeline.py --skip-dedupe    # 跳过去重
+bash scripts/bootstrap.sh              # 环境准备（只需一次）
+bash scripts/quickstart.sh             # 采集 + 生成文案模板
+bash scripts/render.sh                 # 配音 + 渲染
+bash scripts/render.sh --upload        # 渲染 + 上传 B 站
+bash scripts/render.sh --limit 20      # 加大候选池
+```
 
-# 单步调试
-venv/bin/python src/trending_fetcher.py --limit 15
-venv/bin/python src/history_deduper.py status --status video_succeeded
+**底层命令**（需要手动注入 PATH 和环境变量）：
 
-# 测试
-venv/bin/python -m pytest tests/ -q
+```bash
+export PATH="$PWD/bin:$PATH"           # 仅当系统没有 ffmpeg 时
+set -a && source .env && set +a
+
+venv/bin/python pipeline.py --draft     # 只采集
+venv/bin/python pipeline.py             # 渲染
+venv/bin/python pipeline.py --upload    # 上传
+venv/bin/python pipeline.py --limit 20  # 加大候选池
+venv/bin/python pipeline.py --target 3  # 只要 3 个项目
+venv/bin/python pipeline.py --skip-dedupe
+
+venv/bin/python -m src.narrative_validator output/projects_summary.json  # 文案校验
+venv/bin/python src/trending_fetcher.py --limit 15                      # 单步调试
+venv/bin/python -m pytest tests/ -q                                      # 测试
 ```
 
 ## 典型工作流
 
 ```
-1. pipeline.py --draft      采集 + 生成文案模板
+1. quickstart.sh       采集 + 生成文案模板
 2. （编辑 output/projects_summary.json 的 narrative，或让 Agent 写）
-3. pipeline.py              渲染出 mp4
-4. pipeline.py --upload     重新渲染并上传（跳过第 3 步）
+3. render.sh           渲染出 mp4
+4. render.sh --upload  渲染并上传（跳过第 3 步）
 ```
 
-`--draft` 不会配音也不渲染，适合"今天先看看有哪些项目"。
-采集结果已包含 `readme` / `topics` / `preview_image` / `license`，
+`render.sh` 会先跑文案校验，不达标就不渲染，避免产出套话视频。
+
+采集结果已包含 `readme`（清洗后的正文）/ `topics` / `preview_image` / `license`，
 写文案需要的信息都在里面。
 
 ## 取数架构（三层降级）
@@ -222,32 +240,51 @@ export BILIBILI_BUVID3=xxx
 > ⚠️ `qrcode-terminal` 在部分沙箱环境会安装失败（pip 报 mkdir EEXIST）。
 > 失败时从 PyPI 下载 tar.gz 解包到 `site-packages/` 即可。
 
-## 项目结构
+## 目录职责
 
 ```
 .
-├── pipeline.py               # 主流水线（单命令）
-├── requirements.txt
-├── config/
-│   └── config.example.json
-├── data/projects_history.json  # 去重历史
-├── assets/github_logo.png
-├── docs/PLAN.md             # 重构方案（历史文档）
-├── SKILL.md                 # Agent 执行指令（给 AI 读）
-├── scripts/
-│   ├── guard_secrets.py     # pre-commit 凭据拦截
-│   └── purge_bilibili_credentials.sh  # 清除 git 历史中的凭据
-├── tests/test_core.py       # 单元测试
-└── src/
-    ├── trending_fetcher.py    # 取数（三层降级）
-    ├── history_deduper.py     # 去重
-    ├── card_generator.py      # 卡片排版 + 封面 + Star 趋势图
-    ├── narrative_validator.py # 文案质量校验
-    ├── tts_generator.py       # 语音调度
-    ├── video_composer.py      # 合成 + 动效 + 校验
-    ├── bilibili_uploader.py   # B站上传
-    └── tts/                   # 多引擎 TTS
+├── SKILL.md                 Agent 执行指令（新 Agent 读这个）
+├── README.md                人类文档（你读这个）
+├── pipeline.py              流水线入口
+│
+├── scripts/                 运维脚本
+│   ├── bootstrap.sh         环境准备：venv + 依赖 + 配置 + ffmpeg
+│   ├── quickstart.sh        采集 + 生成文案模板
+│   ├── render.sh            校验文案 + 渲染（可选 --upload）
+│   ├── guard_secrets.py     pre-commit 凭据拦截
+│   └── purge_bilibili_credentials.sh   清除 git 历史中的凭据
+│
+├── src/                     业务代码
+│   ├── trending_fetcher.py    取数（三层降级）
+│   ├── history_deduper.py     去重（7 天冷却）
+│   ├── card_generator.py      卡片排版 + 封面 + Star 趋势图
+│   ├── narrative_validator.py 文案质量校验
+│   ├── tts_generator.py       语音调度
+│   ├── video_composer.py      合成 + 动效 + 校验
+│   ├── bilibili_uploader.py   B站上传
+│   └── tts/                   多引擎 TTS
+│
+├── tests/test_core.py       单元测试（53 个）
+├── config/config.example.json  配置模板
+├── data/projects_history.json  去重历史（需入库）
+├── assets/github_logo.png   静态资源（需入库）
+├── docs/PLAN.md             重构方案（历史文档）
+│
+├── venv/                    ← 不入库：Python 环境
+├── bin/                     ← 不入库：ffmpeg 软链，由 bootstrap 生成
+├── output/                  ← 不入库：视频、封面、音频、日志
+├── screenshots/             ← 不入库：项目预览图
+└── .env                     ← 不入库：B站与 GitHub 凭据
 ```
+
+### 哪些必须入库
+
+`config/config.example.json`（模板）、`data/projects_history.json`（去重历史）、
+`assets/`（静态资源）—— 这三个是**跨机器共享的状态或素材**，丢了会影响功能。
+
+其余运行时产物（venv / bin / output / screenshots / .env）都在 `.gitignore` 里，
+换机器后跑 `scripts/bootstrap.sh` 重建即可。
 
 ## 许可证
 
