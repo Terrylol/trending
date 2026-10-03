@@ -22,7 +22,7 @@ fi
 # --draft 是例外：草稿模式本就不渲染，跳过校验
 if [ -f output/projects_summary.json ] && [ "${1:-}" != "--draft" ]; then
     echo "→ 校验文案质量"
-    if ! venv/bin/python -m src.narrative_validator output/projects_summary.json; then
+    if ! "$ROOT/scripts/validate_narrative"; then
         echo
         echo "✗ 文案不达标，已中止渲染。"
         echo "  按上面的提示修改 output/projects_summary.json 的 narrative 字段。"

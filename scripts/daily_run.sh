@@ -53,8 +53,7 @@ echo "[2/2] 渲染" | tee -a "$LOG"
 # 这里先单独跑一次渲染，看是否因文案被拦下 —— 是则明确告诉用户
 # 「素材已就绪，等你补文案」，而不是含糊报「渲染失败」。
 if ! bash scripts/render.sh >>"$LOG" 2>&1; then
-    if venv/bin/python -m src.narrative_validator output/projects_summary.json \
-        >>"$LOG" 2>&1; then
+    if scripts/validate_narrative >>"$LOG" 2>&1; then
         # 校验通过但渲染失败 = 真失败
         echo "✗ 渲染失败，见 $LOG" | tee -a "$LOG"
         exit 1

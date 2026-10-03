@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# 文案质量校验入口（可在任意目录调用）
+#
+# 为什么不用 `python -m src.narrative_validator`：那样要求项目根在
+# sys.path 上，而定时任务、cron、CI 的工作目录不固定。
+# 本脚本用绝对路径 + PYTHONPATH，行为与当前目录无关。
+#
+# 用法：
+#   scripts/validate_narrative                          # 校验默认的 projects_summary.json
+#   scripts/validate_narrative <summary.json>           # 指定文件
+#   scripts/validate_narrative <summary.json> --lenient # 只查字数
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+SUMMARY="$ROOT/output/projects_summary.json"
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        -*) ARGS+=("$arg") ;;
+        *)  SUMMARY="$arg" ;;
+    esac
+done
+
+if [ ! -f "$SUMMARY" ]; then
+    echo "✗ 文案文件不存在: $SUMMARY" >&2
+    exit 2
+fi
+
+if [ ! -x "$ROOT/venv/bin/python" ]; then
+    echo "✗ 未找到 venv，请先运行: bash scripts/bootstrap.sh" >&2
+    exit 2
+fi
+
+PYTHONPATH="$ROOT:$ROOT/src" exec "$ROOT/venv/bin/python" \
+    -c 'import sys
+from narrative_validator import main
+sys.exit(main())' "$SUMMARY" ${ARGS[@]+"${ARGS[@]}"}
