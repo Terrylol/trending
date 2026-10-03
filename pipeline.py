@@ -431,10 +431,25 @@ def step_upload(projects: List[Dict]) -> None:
         raise SystemExit(1)
 
     result = asyncio.run(uploader.upload(str(video_path), projects))
-    if result:
-        print(f'  ✓ 上传成功: {result.get("title")}')
-    else:
+    if not result:
         raise SystemExit('✗ 上传未返回结果')
+
+    print(f'  ✓ 上传成功: {result.get("title")}')
+    # bvid 是确认发了什么的唯一凭据 —— 拿不到就无法核对与后续管理
+    url = result.get('url')
+    if url:
+        print(f'    {url}')
+        record = OUTPUT_DIR / 'last_upload.json'
+        record.write_text(json.dumps({
+            'bvid': result.get('bvid'),
+            'aid': result.get('aid'),
+            'title': result.get('title'),
+            'url': url,
+            'uploaded_at': datetime.now().isoformat(timespec='seconds'),
+        }, ensure_ascii=False, indent=2), encoding='utf-8')
+        print(f'    记录: {record.relative_to(ROOT)}')
+    else:
+        print('    ⚠ 未拿到 BV 号，无法确认投稿内容')
 
 
 def update_history(status: str) -> None:

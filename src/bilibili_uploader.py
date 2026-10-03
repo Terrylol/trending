@@ -119,14 +119,31 @@ class BilibiliUploader:
             
             # 上传
             print(f"    上传中...")
-            await uploader.start()
-            
+            # start() 的返回值就是投稿信息（含 aid/bvid），
+            # 丢掉它就拿不到视频 ID —— 无法确认发了什么，也无法后续管理
+            result = await uploader.start()
+
+            bvid = ''
+            aid = ''
+            if isinstance(result, dict):
+                bvid = result.get('bvid', '')
+                aid = result.get('aid', '')
+            elif hasattr(result, 'bvid'):
+                bvid = result.bvid
+                aid = getattr(result, 'aid', '')
+
             print(f"  ✓ 上传成功")
-            
+            if bvid:
+                print(f"    BV 号: {bvid}")
+                print(f"    https://www.bilibili.com/video/{bvid}")
+
             return {
                 'title': title,
                 'desc': desc,
-                'tags': tags
+                'tags': tags,
+                'bvid': bvid,
+                'aid': aid,
+                'url': f'https://www.bilibili.com/video/{bvid}' if bvid else '',
             }
             
         except Exception as e:

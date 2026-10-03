@@ -124,6 +124,31 @@ star-history 的 y 越小 = 星越多（顶部=最大值）。
 - `STHeiti Medium.ttc` face 0 = Heiti TC（繁体），**face 1 = Heiti SC（简体）才对**
 - `CardGenerator._find_cjk_font()` 会自动探测并显式选简体 face
 
+## Agent 可重复执行机制（2026-10-04）
+**问题**：重构删掉 SKILL.md 换成 pipeline.py 后，流程约定只存在于对话历史里，
+新 Agent 打开项目不知道该干什么。
+
+三层保障：
+1. **`SKILL.md`（入库）** — frontmatter 带 name/description/trigger，可自动触发。
+   含五步工作流 + 文案质量正反例 + 5 条硬性约束 + FAQ。
+   **注意：`.gitignore` 原先忽略 SKILL.md，已移除**（这次它是要入库的核心资产）。
+2. **`src/narrative_validator.py`** — 拦套话 / 数字复述 / 字数不足。
+   CLI：`venv/bin/python -m src.narrative_validator output/projects_summary.json`
+   退出码非 0 = 不达标。`--lenient` 只查字数。
+3. **README 清洗（`_clean_markdown`）** — 长度 800 → 3000 字符，剥 HTML/徽章/裸 URL，
+   Agent 直接可用干净正文写文案，不必自己处理。
+
+### 校验器的盲点（测试抓出来的）
+判断"有效内容"时要**同时去掉数字和英文标签词**（stars/forks/MIT/Python），
+否则 `"89,533 stars, 7,877 forks, MIT, Python"` 去掉数字后还剩 12 个字母，
+会被误判为"有内容"。
+
+### 为什么 SKILL.md 而不是 AGENTS.md
+用户选了 SKILL.md（可被 WorkBuddy 自动触发）。
+AGENTS.md 是跨工具开放约定（Claude Code/Codex/Cursor 都认），但只在本机写、
+不随仓库分发时价值低；SKILL.md 有 trigger 可自动挂载。
+需要跨工具分发时可再补一份 AGENTS.md 指向同一份规范。
+
 ## 文案流程（用户拍板：叫 Agent 跑）
 - **不需要逐个项目深度研究**，但**需要 Agent 轻量探索**（读 README 前 2000 字 + topics）
 - 工作流：`pipeline.py --draft`（只采集+生成模板）→ 编辑 narrative → `pipeline.py`（渲染）
