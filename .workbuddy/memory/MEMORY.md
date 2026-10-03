@@ -124,6 +124,25 @@ star-history 的 y 越小 = 星越多（顶部=最大值）。
 - `STHeiti Medium.ttc` face 0 = Heiti TC（繁体），**face 1 = Heiti SC（简体）才对**
 - `CardGenerator._find_cjk_font()` 会自动探测并显式选简体 face
 
+## 文案流程（用户拍板：叫 Agent 跑）
+- **不需要逐个项目深度研究**，但**需要 Agent 轻量探索**（读 README 前 2000 字 + topics）
+- 工作流：`pipeline.py --draft`（只采集+生成模板）→ 编辑 narrative → `pipeline.py`（渲染）
+- 我执行探索+写文案，pipeline 负责渲染。用户不需要碰 JSON。
+- `auto_narrative` 只是无探索时的规则式兜底，**质量上限低**（对任何 AI 工具
+  都输出同一句话），不要把它当默认路径。
+- 文案判断标准：**不能复述屏幕已有的数字**（星标/日增/fork），必须说"它是干什么的"。
+- 当前实测文案长度 187-217 字/项目（≈30 秒口播）。
+
+## 上传链路（已补齐，之前是坏的）
+- `bilibili_api` 此前**根本没装**（requirements 列了但从未装成功）。
+  依赖链：pyyaml/pyjwt/aiohttp/aiofiles/numpy/bcrypt/brotli/requests-toolbelt/
+  soupsieve/pydantic/pandas + bilibili-api-python 本身
+- **`qrcode-terminal` 在沙箱下 pip 报 mkdir EEXIST**（连续两次同文件名冲突）。
+  workaround：从 PyPI JSON API 拿 tar.gz URL → curl 下载 → 解包到 site-packages
+- 标题生成器取「今日涨星最多」的项目做钩子，而非纯日期
+- `config.json` 补了 bilibili 段（tid 可配，默认 122）
+- 上传前校验：视频存在 / 项目数≥3 / **封面存在** / 凭据完整
+
 ## 环境事实
 - **ffmpeg 来源**：`brew install` 被 sandbox 阻塞，改用 `imageio-ffmpeg` 的二进制 +
   `bin/ffmpeg` 软链（`bin/` 已 gitignore）。用 `PATH="$PWD/bin:$PATH"` 注入

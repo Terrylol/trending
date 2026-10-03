@@ -4,6 +4,8 @@
 
 Python + PIL + MoviePy，无 Node/Chromium 依赖。单命令跑完整流程。
 
+> **让 AI Agent 执行本项目**：见 [`SKILL.md`](SKILL.md)，包含完整工作流与文案质量标准。
+
 ## 快速开始
 
 ```bash
@@ -34,11 +36,28 @@ venv/bin/python pipeline.py
 | `call_to_action` | 固定引导语 |
 
 **推荐：Agent 轻量探索。** `auto_narrative` 的上限是"复述数据"——它说不出
-项目是干什么的。要让视频有内容价值，Agent 只需读 README 前 2000 字 + topics，
-回答一个问题：**"它是干什么的？"** 然后写入 `output/projects_summary.json`。
+项目是干什么的。要让视频有内容价值，Agent 只需读 `output/trending.json` 里
+已经采集好的 `readme`（已清洗，3000 字符内）和 `topics`，回答一个问题：
+**"它是干什么的？"** 然后写入 `output/projects_summary.json`。
 
 判断标准很简单：**文案里每句话都应该是观众听榜单听不到的。** 念星标数
 是无效内容（屏幕右边就写着），说"这是个帮你跨会话记住上下文的工具"才是。
+
+### 文案质量校验
+
+```bash
+venv/bin/python -m src.narrative_validator output/projects_summary.json
+```
+
+拦截三类问题，退出码非 0 表示不达标：
+
+| 类型 | 例子 |
+|---|---|
+| 套话 | 「这是一个面向 AI 智能体的工具，用 Python 编写」 |
+| 数字复述 | 「目前 89,533 星，7,877 个 fork」 |
+| 字数不足 | body 少于 110 字撑不起 30 秒口播 |
+
+`--lenient` 只查字数不查套话。
 
 文案落在 `output/projects_summary.json`，已存在的会被复用，想润色就直接编辑。
 
@@ -214,6 +233,7 @@ export BILIBILI_BUVID3=xxx
 ├── data/projects_history.json  # 去重历史
 ├── assets/github_logo.png
 ├── docs/PLAN.md             # 重构方案（历史文档）
+├── SKILL.md                 # Agent 执行指令（给 AI 读）
 ├── scripts/
 │   ├── guard_secrets.py     # pre-commit 凭据拦截
 │   └── purge_bilibili_credentials.sh  # 清除 git 历史中的凭据
@@ -222,6 +242,7 @@ export BILIBILI_BUVID3=xxx
     ├── trending_fetcher.py    # 取数（三层降级）
     ├── history_deduper.py     # 去重
     ├── card_generator.py      # 卡片排版 + 封面 + Star 趋势图
+    ├── narrative_validator.py # 文案质量校验
     ├── tts_generator.py       # 语音调度
     ├── video_composer.py      # 合成 + 动效 + 校验
     ├── bilibili_uploader.py   # B站上传

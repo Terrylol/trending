@@ -23,6 +23,9 @@ from PIL import Image
 MIN_PROJECTS = 5
 MIN_TOTAL_PERIOD_STARS = 1
 
+# README 存入长度：够 Agent 写文案，又不至于让 JSON 过大
+README_LIMIT = 3000
+
 
 class FetchError(Exception):
     """采集失败（已尝试所有降级路径）"""
@@ -362,7 +365,11 @@ class TrendingFetcher:
                 p['preview_image'] = ''
 
     def _fetch_readmes(self, projects: List[Dict]):
-        """README 走 raw.githubusercontent.com，零 API 配额。"""
+        """README 走 raw.githubusercontent.com，零 API 配额。
+
+        存 3000 字符的**清洗后正文**——Agent 写文案时直接可用，
+        不需要自己再处理 HTML 标签。
+        """
         for p in projects:
             try:
                 response = self.session.get(
@@ -370,11 +377,30 @@ class TrendingFetcher:
                     timeout=10,
                 )
                 if response.status_code == 200:
-                    p['readme'] = response.text[:800]
+                    p['readme'] = self._clean_markdown(response.text)[:README_LIMIT]
             except requests.RequestException:
                 pass
             if not p.get('readme'):
-                p['readme'] = p.get('description', '')
+                p['readme'] = self._clean_markdown(p.get('description', ''))
+
+    @staticmethod
+    def _clean_markdown(text: str) -> str:
+        """清洗 README：剥 HTML 标签与图片，压缩空白。
+
+        Agent 拿到的应该是干净正文，而不是一堆 <p align="center"> 和徽章链接。
+        """
+        text = re.sub(r'<[^>]+>', ' ', text or '')          # HTML 标签
+        text = re.sub(r'!\[[^\]]*\]\([^)]*\)', ' ', text)  # 图片
+        text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)  # 链接保留文字
+        text = re.sub(r'<[^>]+>', ' ', text)                # 残留（如 <br/>）
+        text = re.sub(r'https?://\S+', ' ', text)            # 裸 URL
+        text = re.sub(r'[\U0001F300-\U0001FAFF]', ' ', text)  # emoji
+        # 徽章行一般是连续的 link，纯图片残留后会变成空行
+        text = re.sub(r'[#=*_`>\-|]{3,}', '\n', text)
+        text = re.sub(r'^\s*[#=]+\s*', '', text, flags=re.M)  # 标题符号
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
 
     # ---------- 第三层：缓存 ----------
 

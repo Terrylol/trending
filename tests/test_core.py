@@ -16,6 +16,12 @@ from history_deduper import (
     select_projects,
     successful_selected_in_window,
 )
+from narrative_validator import (
+    MIN_TOTAL,
+    summarize_duration,
+    validate_all,
+    validate_project,
+)
 from pipeline import auto_narrative, _clean_text
 from trending_fetcher import TrendingFetcher
 from video_composer import FADE_IN, FADE_OUT, ZOOM_RATIO, VideoComposer
@@ -449,3 +455,114 @@ def test_compose_rejects_empty_slides():
             return
         raise AssertionError('空内容必须被拒绝')
 
+
+
+# ---------- 文案质量校验 ----------
+
+def _narrative(hook, body, cta):
+    return {'name': 'x', 'full_name': 'a/x',
+            'narrative': {'hook': hook, 'body': body, 'call_to_action': cta}}
+
+
+_GOOD_BODY = ('现在的 AI Agent 想读推特、看 B 站、刷小红书，都得一个个接 API，'
+              '还得付费。这个项目把它收拢成一条命令，装好之后你的 Agent 就能直接'
+              '读这些平台的内容。它的定位很实在——接入方式以后会换代，但它会替你'
+              '选好、装好、体检好，你不用操心。')
+
+
+def test_validator_accepts_good_narrative():
+    issues = validate_project(_narrative(
+        '让 AI Agent 能刷 B站和小红书，不花一分钱',
+        _GOOD_BODY,
+        '想给 Agent 加联网能力，可以先看看。'))
+    assert issues == [], f'合格文案不该有 issue: {issues}'
+
+
+def test_validator_rejects_cliche():
+    """回归测试：'这是一个面向 AI 的工具，用 X 编写' 是典型的无效文案。"""
+    issues = validate_project(_narrative(
+        '今天新增 1,683 星',
+        '这是一个面向 AI 智能体的工具，用 Python 编写。目前 89,533 星，7,877 个 fork。',
+        '快去试试吧'))
+    joined = ' '.join(issues)
+    assert '套话' in joined or '有效内容过少' in joined, f'应识别为套话: {issues}'
+    assert '没有说明项目能做什么' in joined
+
+
+def test_validator_rejects_number_recitation():
+    """回归测试：复述屏幕已有的数字是零信息量。"""
+    issues = validate_project(_narrative(
+        '89,533',
+        '89,533 stars, 7,877 forks, MIT, Python, TypeScript, AI, agent, cli.',
+        '值得一看'))
+    joined = ' '.join(issues)
+    assert 'hook 只有数字' in joined
+    assert '有效内容过少' in joined
+
+
+def test_validator_catches_empty_fields():
+    issues = validate_project(_narrative('', '', ''))
+    assert sum('为空' in i for i in issues) == 3
+
+
+def test_validator_lenient_mode_skips_cliche_check():
+    strict = validate_project(_narrative(
+        '今天新增 1,683 星',
+        '这是一个面向 AI 智能体的工具，用 Python 编写。目前 89,533 星，7,877 个 fork。',
+        '快去试试吧'), strict=True)
+    lenient = validate_project(_narrative(
+        '今天新增 1,683 星',
+        '这是一个面向 AI 智能体的工具，用 Python 编写。目前 89,533 星，7,877 个 fork。',
+        '快去试试吧'), strict=False)
+    assert len(strict) > len(lenient), 'lenient 模式应更宽松'
+
+
+def test_validate_all_reports_only_bad_ones():
+    projects = [
+        _narrative('让 AI Agent 能刷 B站', _GOOD_BODY, '可以先看看。'),
+        _narrative('89,533', '89,533 stars, 7,877 forks, MIT, Python.', '看看'),
+    ]
+    result = validate_all(projects)
+    assert len(result) == 1
+    assert 'a/x' in result
+
+
+def test_summarize_duration_scales_with_text():
+    short = [_narrative('短', _GOOD_BODY[:40], '看看')]
+    long = [_narrative('长', _GOOD_BODY * 2, '看看看看。')]
+    assert summarize_duration(long) > summarize_duration(short)
+
+
+def test_auto_narrative_output_fails_strict_validation():
+    """规则式兜底文案本来就达不到内容质量标准——
+    这正是需要 Agent 介入的原因，测试固化了这一事实。"""
+    issues = validate_project({
+        'name': 'x', 'full_name': 'a/x',
+        'narrative': auto_narrative({
+            'name': 'x', 'url': 'https://github.com/a/x',
+            'description': 'A CLI tool for AI agents with token optimization.',
+            'language': 'Go', 'stars': 100, 'forks': 10,
+            'currentPeriodStars': 0, 'topics': ['ai'],
+        }),
+    })
+    assert issues, 'auto_narrative 的产物应无法通过严格校验（说明它只是兜底）'
+
+
+# ---------- README 清洗 ----------
+
+def test_clean_markdown_strips_html_and_badges():
+    raw = ('<h1 align="center">Title</h1>\n'
+           '<p align="center"><img src="badge.svg" alt="badge"></p>\n'
+           '<p>Real content here.</p>\n'
+           '[link](https://example.com)\n')
+    out = TrendingFetcher._clean_markdown(raw)
+    assert '<h1' not in out and '<p' not in out and 'img src' not in out
+    assert 'Real content here.' in out
+    assert 'link' in out, '链接文字应保留'
+    assert 'https://' not in out, '裸 URL 应被移除'
+
+
+def test_clean_markdown_preserves_chinese():
+    raw = '## 标题\n\n这是中文内容，用于测试清洗逻辑。\n\n```bash\ncode block\n```\n'
+    out = TrendingFetcher._clean_markdown(raw)
+    assert '这是中文内容' in out
