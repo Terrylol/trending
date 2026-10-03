@@ -148,7 +148,7 @@ def step_dedupe(limit: int, target: int) -> List[Dict]:
     return projects
 
 
-def step_summarize(projects: List[Dict], target: int) -> List[Dict]:
+def step_summarize(projects: List[Dict], target: int, draft: bool = False) -> List[Dict]:
     """合并采集数据与文案。
 
     关键：narrative 必须存在，否则语音会是空洞的一句话。
@@ -202,8 +202,23 @@ def step_summarize(projects: List[Dict], target: int) -> List[Dict]:
             print(f'  ⚠ 仍缺文案（采集数据不足）: {", ".join(still_missing)}')
             raise SystemExit(1)
 
-        print(f'  ✓ 文案就绪（{len(merged)} 个项目）')
-        print(f'    如需更好的文案，可编辑 {summary_path.relative_to(ROOT)} 后重跑')
+        # 提前告知：规则式兜底大概率达不到内容质量标准，
+        # 否则用户会遇到"刚生成就说不达标"的困惑。
+        from narrative_validator import validate_all
+        low_quality = validate_all(merged, strict=True)
+        if low_quality:
+            print(f'  ⚠ {len(low_quality)}/{len(merged)} 个项目的兜底文案质量不足：')
+            for name, issues in low_quality.items():
+                print(f'      {name}: {issues[0]}')
+            print()
+            print('  这是规则式生成的局限 —— 它只能复述描述和数字。')
+            print(f'  请编辑 {summary_path.relative_to(ROOT)} 的 narrative 字段，'
+                  f'回答「这项目是干什么的」。')
+            if not draft:
+                print('  校验：venv/bin/python -m src.narrative_validator '
+                      'output/projects_summary.json')
+        else:
+            print(f'  ✓ 文案就绪（{len(merged)} 个项目）')
         return merged
 
     # 首次运行：用采集数据生成初始文案
@@ -520,7 +535,7 @@ def main() -> int:
         else:
             projects = step_dedupe(limit, target)
 
-        projects = step_summarize(projects, target)
+        projects = step_summarize(projects, target, draft=args.draft)
 
         if args.draft:
             print('\n' + '=' * 64)

@@ -19,7 +19,8 @@ if [ ! -d venv ]; then
 fi
 
 # 文案质量闸：不达标就不渲染，避免产出套话视频
-if [ -f output/projects_summary.json ]; then
+# --draft 是例外：草稿模式本就不渲染，跳过校验
+if [ -f output/projects_summary.json ] && [ "${1:-}" != "--draft" ]; then
     echo "→ 校验文案质量"
     if ! venv/bin/python -m src.narrative_validator output/projects_summary.json; then
         echo

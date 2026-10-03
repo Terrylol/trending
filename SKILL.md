@@ -1,7 +1,7 @@
 ---
 name: github-trending-video
 description: 生成 GitHub Trending 视频。采集当日热榜项目、轻量探索后撰写口播文案、配音、渲染成 1080p 横屏视频，可选上传 B站。触发词：做今天的视频、GitHub 热榜、trending 视频、出今天的视频
-version: 2.0.0
+version: 2.1.0
 license: MIT
 ---
 
@@ -15,12 +15,32 @@ license: MIT
 它们只是把文案变成视频。如果文案在复述屏幕上的数字，整条视频就是零信息量——
 观众的眼睛已经在卡片右边看到那些数字了。
 
+## 项目位置
+
+本 Skill 的脚本在项目根目录。定位方式（按优先级）：
+
+```bash
+# 1. 环境变量（安装时可指定）
+PROJECT_DIR="${TRENDING_PROJECT_DIR:-}"
+
+# 2. 常见位置
+[ -z "$PROJECT_DIR" ] && PROJECT_DIR="$HOME/WorkBuddy/trending"
+
+# 3. 从本 SKILL.md 位置反推（软链安装时有效）
+[ -d "$PROJECT_DIR" ] || PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+```
+
+下面所有命令都假设已在 `$PROJECT_DIR` 下。实际执行时先 `cd` 过去：
+
+```bash
+cd "$PROJECT_DIR"    # 或直接用绝对路径调用脚本
+```
+
 ## 完整流程
 
 ### 第 1 步：采集
 
 ```bash
-cd /Users/chengshang/WorkBuddy/trending
 bash scripts/quickstart.sh
 ```
 

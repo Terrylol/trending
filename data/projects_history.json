@@ -85,30 +85,36 @@
     "2026-10-04": {
       "status": "selected",
       "fetched": [
-        "NandhaKishorM/laya",
-        "eternity4719/HowToLiveBetter",
-        "browser-use/jev-ultrafast",
-        "KKKKhazix/AIHOT",
-        "Niko1221/Strata",
-        "Louis-CFM/coucou",
-        "jev-chat/jev-chat-jarvis",
-        "zai-org/ZCode",
-        "jaredpalmer/kev",
-        "mizorewww/laya-mlx",
-        "tamaratran/fast-jev-compaction",
-        "robbietilton/Compositor",
-        "cdyforever/how-to-live-better",
-        "yetone/magpie",
-        "Mak5er/AirCard"
+        "DietrichGebert/ponytail",
+        "pbakaus/impeccable",
+        "affaan-m/ECC",
+        "Effect-TS/effect",
+        "JuliusBrussee/caveman",
+        "Panniantong/Agent-Reach",
+        "pingdotgg/t3code",
+        "thedotmack/claude-mem",
+        "cloudflare/cloudflare-os",
+        "addyosmani/agent-skills",
+        "obra/superpowers",
+        "mattpocock/skills",
+        "mksglu/context-mode",
+        "earendil-works/pi",
+        "getsentry/sentry"
       ],
       "selected": [
-        "NandhaKishorM/laya",
-        "eternity4719/HowToLiveBetter",
-        "browser-use/jev-ultrafast",
-        "KKKKhazix/AIHOT",
-        "Niko1221/Strata"
+        "Panniantong/Agent-Reach",
+        "pingdotgg/t3code",
+        "thedotmack/claude-mem",
+        "cloudflare/cloudflare-os",
+        "addyosmani/agent-skills"
       ],
-      "skipped_duplicates": []
+      "skipped_duplicates": [
+        "DietrichGebert/ponytail",
+        "pbakaus/impeccable",
+        "affaan-m/ECC",
+        "Effect-TS/effect",
+        "JuliusBrussee/caveman"
+      ]
     }
   }
 }
