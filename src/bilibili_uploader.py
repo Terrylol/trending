@@ -10,6 +10,9 @@ import os
 from typing import List, Dict
 from datetime import datetime
 
+# B站标题上限 80 字。留 3 字余量，避免边界情况被截断。
+TITLE_MAX_LENGTH = 77
+
 
 class BilibiliUploader:
     def __init__(self, config: Dict):
@@ -37,17 +40,26 @@ class BilibiliUploader:
     def _build_title(self, projects: List[Dict]) -> str:
         """生成标题。
 
-        原实现是 `GitHub 今日热榜 Top 5 (20261004)` —— 只有日期没有钩子。
-        这里取「今日涨星最多」的项目名做钩子，因为它是观众最可能点开的那个。
+        优先级：
+        1. Agent 标注的 title_hook（它有判断力，知道哪句最吸引人）
+        2. 真实日增最多的项目做钩子（降级数据不参与，那是日均值不是日增）
+        3. 兜底文案
 
-        注意：降级数据（growth_estimated=True）的增速是日均值而非真实日增，
-        拿它写「一天涨了 N 星」会是假标题，因此那种情况走备用文案。
+        原实现是 `GitHub 今日热榜 Top 5 (20261004)` —— 只有日期没有钩子。
+        后来试过「项目名 + 日增数字」，发现"Agent-Reach 一天涨了 1683 星"
+        对不认识该项目的人毫无吸引力，而 narrative.hook 是专门写的钩子文案，
+        传播力强得多。
         """
         date = datetime.now().strftime('%m月%d日')
         if not projects:
             return f'GitHub 今日热榜 ({date})'
 
-        # 只用真实日增数据做钩子
+        # ---- 优先：Agent 标注的标题钩子 ----
+        best = self._pick_title_hook(projects)
+        if best:
+            return best[:TITLE_MAX_LENGTH]
+
+        # ---- 次选：真实日增最多的项目 ----
         real_growth = [p for p in projects if not p.get('growth_estimated')]
         if real_growth:
             hottest = max(real_growth,
@@ -57,8 +69,46 @@ class BilibiliUploader:
             if name and today > 0:
                 return f'GitHub 今日热榜｜{name} 一天涨了 {today:,} 星'
 
-        # 全部是降级数据：不编造日增数字
+        # ---- 兜底 ----
         return f'GitHub 热门项目 {len(projects)} 个｜{date}'
+
+    def _pick_title_hook(self, projects: List[Dict]) -> str:
+        """挑出最适合做标题的 hook。
+
+        两级策略：
+        1. Agent 显式标注 title_hook 的项目（`narrative.title_hook: true`）
+        2. 否则从所有 hook 里挑最长的（长通常意味着信息更完整）
+        """
+        # Agent 可能显式指定某个项目的 hook 最适合当标题
+        marked = []
+        for p in projects:
+            narrative = p.get('narrative') or {}
+            if narrative.get('title_hook'):
+                hook = (narrative.get('hook') or '').strip()
+                if hook:
+                    marked.append(hook)
+        if marked:
+            return self._with_brand(marked[0])
+
+        # 未标注时：取最长的 hook（信息量通常更大）
+        hooks = [(p.get('narrative') or {}).get('hook', '').strip()
+                 for p in projects]
+        hooks = [h for h in hooks if h]
+        if not hooks:
+            return ''
+        return self._with_brand(max(hooks, key=len))
+
+    @staticmethod
+    def _with_brand(hook: str) -> str:
+        """给 hook 加上品牌前缀。
+
+        B站搜索流量依赖关键词，`GitHub` 能带来长尾流量，
+        所以即便 hook 本身够吸引人，也保留前缀。
+        """
+        hook = hook.rstrip('。！？!?…')
+        if hook.startswith('GitHub'):
+            return hook
+        return f'GitHub 今日热榜｜{hook}'
     
     async def upload(self, video_path: str, projects: List[Dict]):
         """上传视频到B站"""

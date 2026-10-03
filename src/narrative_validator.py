@@ -75,6 +75,10 @@ def validate_project(project: Dict, *, strict: bool = True) -> List[str]:
     hook = (narrative.get('hook') or '').strip()
     body = (narrative.get('body') or '').strip()
 
+    # title_hook 是可选标记字段（Agent 标注"这句最适合做标题"），不参与字数校验
+    if 'title_hook' in narrative and not isinstance(narrative['title_hook'], bool):
+        issues.append('title_hook 必须是布尔值（true / false）')
+
     # hook 只有数字 = 零信息
     if hook and NUMBER_ONLY.match(hook):
         issues.append('hook 只有数字，没有信息量')

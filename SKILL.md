@@ -69,7 +69,8 @@ bash scripts/bootstrap.sh
   "narrative": {
     "hook": "约 20 字，用最抓眼的事实开场",
     "body": "110-190 字，回答「这项目是干什么的」",
-    "call_to_action": "约 20 字，引导行动"
+    "call_to_action": "约 20 字，引导行动",
+    "title_hook": false
   }
 }
 ```
@@ -82,6 +83,10 @@ bash scripts/bootstrap.sh
 - ✅「这是 Google 工程师把团队的工程规范打包给 AI 用了」
 - ❌「这是一个面向 AI 智能体的工具，用 Python 编写」—— 对任何 AI 项目都成立
 - ❌「目前 89,533 星，7,877 个 fork」—— 卡片右边就写着
+
+**关于 `title_hook`**：把它设成 `true` 表示「这句 hook 最适合做 B 站标题」。
+标题是流量入口，**你比脚本更懂哪句更吸引人** —— 脚本只会退回"取最长 hook"这种
+笨办法。不确定就不标，脚本会自动挑。
 
 **风格要求**：
 - 口语化，像跟朋友讲，不要书面语

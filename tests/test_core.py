@@ -646,3 +646,71 @@ def test_title_avoids_fake_daily_growth():
     }]
     real_title = uploader._build_title(real)
     assert '一天涨了 1,289 星' in real_title, f'真实日增应正常做钩子: {real_title}'
+
+
+# ---------- 标题生成（Agent hook 优先）----------
+
+def _uploader():
+    import os as _os
+    _os.environ.setdefault('BILIBILI_SESSDATA', 'x' * 30)
+    _os.environ.setdefault('BILIBILI_BILI_JCT', 'y' * 32)
+    _os.environ.setdefault('BILIBILI_BUVID3', 'z' * 30)
+    from bilibili_uploader import BilibiliUploader
+    return BilibiliUploader({'tid': 122})
+
+
+def _proj(name, hook='', title_hook=False, growth=0, estimated=False):
+    return {'name': name, 'currentPeriodStars': growth,
+            'growth_estimated': estimated,
+            'narrative': {'hook': hook, 'title_hook': title_hook}}
+
+
+def test_title_prefers_agent_marked_hook():
+    """"Agent-Reach 一天涨了 1683 星" 对不认识项目的人没吸引力，
+    narrative.hook 才是专门写的钩子。Agent 标注的优先。"""
+    u = _uploader()
+    projects = [
+        _proj('short', '今天新增很多星', growth=9999),
+        _proj('marked', 'Google 的工程师把工作方法打包给 AI 用了', title_hook=True),
+    ]
+    title = u._build_title(projects)
+    assert 'Google 的工程师' in title, f'应采用 Agent 标注的 hook: {title}'
+    assert '9999' not in title, '不应被日增数字带偏'
+
+
+def test_title_falls_back_to_longest_hook():
+    u = _uploader()
+    projects = [
+        _proj('a', '短'),
+        _proj('b', '这个 hook 明显更长，信息也更完整，适合做标题'),
+    ]
+    title = u._build_title(projects)
+    assert '明显更长' in title, f'未标注时应取最长 hook: {title}'
+
+
+def test_title_keeps_github_keyword():
+    """B站搜索流量依赖关键词，前缀必须保留。"""
+    u = _uploader()
+    title = u._build_title([_proj('x', '让 AI Agent 能刷 B站')])
+    assert 'GitHub' in title, f'标题应保留 GitHub 关键词: {title}'
+
+
+def test_title_strips_trailing_punctuation():
+    u = _uploader()
+    title = u._build_title([_proj('x', '让 AI Agent 能刷 B站。')])
+    assert not title.endswith('。'), f'应去掉句尾标点: {title}'
+
+
+def test_title_respects_length_limit():
+    u = _uploader()
+    title = u._build_title([_proj('x', '很长的钩子' * 40)])
+    assert len(title) <= 80, f'标题不能超过 B站 80 字限制: {len(title)}'
+
+
+def test_title_without_narrative_uses_growth():
+    """没有 narrative 时回退到日增钩子（脚本判断不了质量，只有数据可用）。"""
+    u = _uploader()
+    projects = [{'name': 'ponytail', 'currentPeriodStars': 1289,
+                 'growth_estimated': False, 'narrative': {}}]
+    title = u._build_title(projects)
+    assert 'ponytail' in title and '1,289' in title, f'应回退到日增钩子: {title}'
